@@ -11,17 +11,23 @@
 
 #include <stdbool.h>
 #include <string.h>
+#include <asf.h>
+#include <samd21.h>
 
 static bool mSeqNo = false;
 
 
 enum USBCmd
 {
-	USB_CMD_ECHO = 0x01,
+	USB_CMD_ECHO           = 0x01,
+	USB_CMD_CFG            = 0x02,
+	USB_CMD_GPIO_CFG       = 0x03,
+	USB_CMD_GPIO_PIN_SET   = 0x04,
+	USB_CMD_GPIO_PIN_READ  = 0x05,
 };
 
 
-struct USBHeader
+__PACKED_STRUCT USBHeader
 {
 	uint8_t seq_no:1;
 	uint8_t cmd:7;
@@ -31,16 +37,28 @@ struct USBHeader
 
 typedef struct USBHeader USBHeader;
 
-enum USB_ERROR{
-	USB_ERROR_NONE             = 0x00,
-	USB_ERROR_UNKNOWN_CMD      = 0x01,
-	USB_ERROR_NO_MEMORY        = 0x02,
-	USB_ERROR_MALFORMED_PACKET = 0x03,
-	USB_ERROR_RESOURCE_BUSY    = 0x04,
-};
+
+#if 0
+static bool in_array(uint8_t value, const uint8_t * arr, size_t len)
+{	
+	size_t k;
+
+	for(k = 0; k < len; k++)
+	{
+		if(value == arr[k]) {
+			break;
+		}
+	}
+	
+	if(len == k) {
+		return false;
+	}
+	return true;
+}
+#endif
 
 
-static enum USB_ERROR process_cmd_echo(const uint8_t * cmd_data, size_t cmd_len, 
+static enum RJT_USB_ERROR process_cmd_echo(const uint8_t * cmd_data, size_t cmd_len, 
 		uint8_t * rsp_data, size_t * rsp_len)
 {
 	ASSERT(cmd_len <= *rsp_len);
@@ -51,7 +69,7 @@ static enum USB_ERROR process_cmd_echo(const uint8_t * cmd_data, size_t cmd_len,
 
 	*rsp_len = cmd_len;
 
-	return USB_ERROR_NONE;
+	return RJT_USB_ERROR_NONE;
 };
 
 
@@ -63,7 +81,7 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 		return;
 	}
 
-	enum USB_ERROR ret_code;
+	enum RJT_USB_ERROR ret_code;
 
 	USBHeader * cmd_header = (USBHeader *) cmd_data;
 	USBHeader * rsp_header = (USBHeader *) rsp_data;
@@ -89,15 +107,26 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 	ASSERT(*rsp_len >= sizeof(USBHeader));
 	*rsp_len -= sizeof(USBHeader);
 
+	#define CASE2FUNC(cmd_id, cmd_func)																				\
+		case cmd_id:																														\
+			ret_code = cmd_func(cmd_header->data, cmd_len - sizeof(USBHeader),		\
+					rsp_header->data, rsp_len);																				\
+			break										
+
 	switch(cmd_header->cmd)
 	{
-		case USB_CMD_ECHO:
-			ret_code = process_cmd_echo(cmd_header->data, cmd_len - sizeof(USBHeader), 
-					rsp_header->data, rsp_len);
-			break;
+		CASE2FUNC(USB_CMD_ECHO, process_cmd_echo);
+
+		CASE2FUNC(USB_CMD_CFG, RJTUSBBridgeConfig_setConfig);
+
+		CASE2FUNC(USB_CMD_GPIO_CFG, RJTUSBBridgeGPIO_configureIndex);
+
+		CASE2FUNC(USB_CMD_GPIO_PIN_SET, RJTUSBBridgeGPIO_pinSet);
+
+		CASE2FUNC(USB_CMD_GPIO_PIN_READ, RJTUSBBridgeGPIO_pinRead);
 
 		default:
-			ret_code = USB_ERROR_UNKNOWN_CMD;
+			ret_code = RJT_USB_ERROR_UNKNOWN_CMD;
 			break;
 	}
 
@@ -151,5 +180,5 @@ bool RJTUSBBridge_processControlRequestWrite(
 
 void RJTUSBBridge_init(void)
 {
-	
+	RJTUSBBridge_configInit();
 }
