@@ -30,6 +30,8 @@ static void send_bytes(const void * data, uint8_t len)
 	system_interrupt_leave_critical_section();
 }
 
+#pragma GCC push_options
+#pragma GCC optimize("O0")
 
 void RJTLogger_process(void)
 {
@@ -41,18 +43,29 @@ void RJTLogger_process(void)
 		mDroppedMsg = false;
 	}
 
-	uint8_t buf[32];
+	uint8_t buf[64];
 
-	while(0 < RJTQueue_getNumEnqueued(&mLogQueue))
+	while(true)
 	{
+		system_interrupt_enter_critical_section();
+
 		size_t num2read = MIN(sizeof(buf), RJTQueue_getNumEnqueued(&mLogQueue));
 
-		bool success = RJTQueue_dequeue(&mLogQueue, buf, num2read);
-		ASSERT(true == success);
+		if(0 < num2read) {
+			bool success = RJTQueue_dequeue(&mLogQueue, buf, num2read);
+			ASSERT(true == success);
+		}
+
+		system_interrupt_leave_critical_section();
+
+		if(0 == num2read) {
+			break;
+		}
 
 		send_bytes(buf, num2read);
 	}
 }
+#pragma GCC pop_options
 
 
 void RJTLogger_print(const char fmt[], ...)

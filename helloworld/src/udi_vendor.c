@@ -11,26 +11,52 @@
 #include "utils.h"
 
 #include <string.h>
+#include <asf.h>
+
+#if 1
+#define CRITICAL_SECTION_ENTER()							\
+do {																					\
+	system_interrupt_enter_critical_section()
+
+#define CRITICAL_SECTION_EXIT()								\
+	system_interrupt_leave_critical_section();	\
+} while(0)
+
+#else
+
+#define CRITICAL_SECTION_ENTER()
+
+#define CRITICAL_SECTION_EXIT()
+
+#endif
 
 static COMPILER_WORD_ALIGNED uint8_t mWriteBuf[UDI_VENDOR_EP_SIZE];
 
 static COMPILER_WORD_ALIGNED uint8_t mReadBuf[UDI_VENDOR_EP_SIZE];
+
+static COMPILER_WORD_ALIGNED uint32_t mNotify;
+
 static size_t mReadBufLen = 0;
+
 static bool mReadEPEnabled = false;
 static bool mWriteEPEnabled = false;
+static bool mNotifyEPEnabled = false;
+static bool mNotifyEPAborting = false;
 
 static void read_transfer_callback(udd_ep_status_t  status,
 	iram_size_t  nb_transfered,	udd_ep_id_t  ep)
 {
 	//RJTLogger_print("read_transfer_callback");
+	CRITICAL_SECTION_ENTER();
+
 	switch(status)
 	{
 		case UDD_EP_TRANSFER_ABORT:
-			RJTLogger_print("abort read success");
+			//RJTLogger_print("abort read success");
 
 			if(true == mReadEPEnabled)
 			{
-				RJTLogger_print("starting read endpoint");
+				//RJTLogger_print("starting read endpoint");
 
 				bool short_packet = mReadBufLen < UDI_VENDOR_EP_SIZE;
 
@@ -50,6 +76,8 @@ static void read_transfer_callback(udd_ep_status_t  status,
 			RJTUSBBridge_rspSent();
 			break;
 	}
+
+	CRITICAL_SECTION_EXIT();
 }
 
 
@@ -59,6 +87,8 @@ static void write_transfer_callback(udd_ep_status_t  status, iram_size_t  nb_tra
 
 static void process_write(iram_size_t nb_transfered)
 {
+	CRITICAL_SECTION_ENTER();
+
 	//RJTLogger_print("write transfer: %d", nb_transfered);
 
 	uint8_t buf[sizeof(mReadBuf)];
@@ -106,6 +136,8 @@ static void process_write(iram_size_t nb_transfered)
 
 		mReadEPEnabled = true;
 	}
+
+	CRITICAL_SECTION_EXIT();
 }
 
 
@@ -118,6 +150,8 @@ static void write_transfer_callback(udd_ep_status_t  status,
 		RJTLogger_print("invalid write address: %x", ep);
 		return;
 	}
+
+	CRITICAL_SECTION_ENTER();
 
 	switch(status)
 	{
@@ -142,6 +176,49 @@ static void write_transfer_callback(udd_ep_status_t  status,
 			}
 		} break;
 	}
+
+	CRITICAL_SECTION_EXIT();
+}
+
+
+static void interrupt_transfer_callback(udd_ep_status_t status,
+		iram_size_t nb_transfered, udd_ep_id_t ep)
+{
+	if(UDI_VENDOR_EP_NOTIFY_ADDR != ep) {
+		RJTLogger_print("invalid notify address: %x", ep);
+		return;
+	}
+
+	CRITICAL_SECTION_ENTER();
+
+	switch(status)
+	{
+		case UDD_EP_TRANSFER_OK: {
+			//RJTLogger_print("interrupt transfer ok!");
+
+			bool success =
+				udd_ep_run(UDI_VENDOR_EP_NOTIFY_ADDR,
+					false, (uint8_t *)&mNotify, sizeof(mNotify), interrupt_transfer_callback);
+			ASSERT(success);
+		
+		} break;
+
+		case UDD_EP_TRANSFER_ABORT: {
+			RJTLogger_print("interrupt transfer aborted...");
+			
+			mNotifyEPAborting = false;
+
+			if(true == mNotifyEPEnabled)
+			{
+				bool success =
+					udd_ep_run(UDI_VENDOR_EP_NOTIFY_ADDR,
+						false, (uint8_t *)&mNotify, sizeof(mNotify), interrupt_transfer_callback);
+				ASSERT(success);
+			}
+		} break;
+	}
+
+	CRITICAL_SECTION_EXIT();
 }
 
 
@@ -149,10 +226,13 @@ static bool udi_vendor_enable(void)
 {
 	RJTLogger_print("vendor enable");
 
+	CRITICAL_SECTION_ENTER();
+
 	if(false == mWriteEPEnabled)
 	{
 		bool success = 
-			udd_ep_run(UDI_VENDOR_EP_WRITE_ADDR, true, mWriteBuf, sizeof(mWriteBuf), write_transfer_callback);
+			udd_ep_run(UDI_VENDOR_EP_WRITE_ADDR, 
+				true, mWriteBuf, sizeof(mWriteBuf), write_transfer_callback);
 		ASSERT(success);
 	}
 	else {
@@ -161,17 +241,63 @@ static bool udi_vendor_enable(void)
 
 	mWriteEPEnabled = true;
 
+	if(false == mNotifyEPEnabled)
+	{
+		bool success = 
+			udd_ep_run(UDI_VENDOR_EP_NOTIFY_ADDR, 
+				false, (uint8_t *)&mNotify, sizeof(mNotify), interrupt_transfer_callback);
+		ASSERT(success);
+	}
+	else {
+		mNotifyEPAborting = true;
+		udd_ep_abort(UDI_VENDOR_EP_NOTIFY_ADDR);
+	}
+
+	mNotifyEPEnabled = true;
+
+	CRITICAL_SECTION_EXIT();
+
 	return true;
 }
+
+
+void RJTUSBBridge_setInterruptStatus(uint32_t interrupt_status)
+{
+	CRITICAL_SECTION_ENTER();
+
+	if(mNotifyEPEnabled) 
+	{
+		if(false == mNotifyEPAborting)
+		{
+			mNotifyEPAborting = true;
+			
+			udd_ep_abort(UDI_VENDOR_EP_NOTIFY_ADDR);
+			
+			mNotify = interrupt_status;
+		}
+		else {
+			// already aborting, nothing to do
+			mNotify = interrupt_status;
+		}
+	}
+
+	CRITICAL_SECTION_EXIT();
+}
+
 
 static void udi_vendor_disable(void)
 {
 	RJTLogger_print("vendor disable");
 }
 
+
 static bool udi_vendor_setup(void)
 {
 	RJTLogger_print("vendor setup");
+
+	bool ret_code = false;
+
+	CRITICAL_SECTION_ENTER();
 
 	// Parse the udd_g_ctrlreq to determine the command
 	if(Udd_setup_is_out())
@@ -189,7 +315,7 @@ static bool udi_vendor_setup(void)
 				//RJTLogger_print("  wValue: %x", udd_g_ctrlreq.req.wValue);
 				//RJTLogger_print("  wIndex: %x", udd_g_ctrlreq.req.wIndex);
 
-				return RJTUSBBridge_processControlRequestWrite(
+				ret_code = RJTUSBBridge_processControlRequestWrite(
 					udd_g_ctrlreq.req.bRequest,
 					udd_g_ctrlreq.req.wValue,
 					&udd_g_ctrlreq.payload,
@@ -213,7 +339,10 @@ static bool udi_vendor_setup(void)
 
 		RJTLogger_print("function -> host cntr transfer not implemented...");
 	}
-	return false;
+
+	CRITICAL_SECTION_EXIT();
+
+	return ret_code;
 }
 
 static uint8_t udi_vendor_getsetting(void)

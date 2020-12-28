@@ -24,6 +24,10 @@ enum USBCmd
 	USB_CMD_GPIO_CFG       = 0x03,
 	USB_CMD_GPIO_PIN_SET   = 0x04,
 	USB_CMD_GPIO_PIN_READ  = 0x05,
+	USB_CMD_GPIO_GET_INTERRUPT_STATUS    = 0x06,
+	USB_CMD_GPIO_CLEAR_INTERRUPT_STATUS  = 0x07,
+	USB_CMD_GPIO_ENABLE_PIN_INTERRUPT    = 0x08,
+	USB_CMD_SPIM_TRANSFER_DATA = 0x09,
 };
 
 
@@ -36,6 +40,32 @@ __PACKED_STRUCT USBHeader
 };
 
 typedef struct USBHeader USBHeader;
+
+static uint32_t interrupt_status = 0;
+
+
+void RJTUSBBridge_setInterruptBit(enum RJT_USB_INTERRUPT_BIT bit, bool notify)
+{
+	system_interrupt_enter_critical_section();
+	interrupt_status |= (1 << bit);
+	system_interrupt_leave_critical_section();
+
+	if(notify) {
+		RJTUSBBridge_setInterruptStatus(interrupt_status);
+	}
+};
+
+
+void RJTUSBBridge_clearInterruptBit(enum RJT_USB_INTERRUPT_BIT bit, bool notify)
+{
+	system_interrupt_enter_critical_section();
+	interrupt_status &= ~(1 << bit);
+	system_interrupt_leave_critical_section();
+	
+	if(notify) {
+		RJTUSBBridge_setInterruptStatus(interrupt_status);
+	}
+};
 
 
 #if 0
@@ -86,6 +116,7 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 	USBHeader * cmd_header = (USBHeader *) cmd_data;
 	USBHeader * rsp_header = (USBHeader *) rsp_data;
 
+	
 	#if 1
 	// check the sequence number
 	if(mSeqNo == cmd_header->seq_no) {
@@ -113,6 +144,8 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 					rsp_header->data, rsp_len);																				\
 			break										
 
+	//RJTLogger_print("USB Bridge: Processing %x", cmd_header->cmd);
+
 	switch(cmd_header->cmd)
 	{
 		CASE2FUNC(USB_CMD_ECHO, process_cmd_echo);
@@ -124,6 +157,14 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 		CASE2FUNC(USB_CMD_GPIO_PIN_SET, RJTUSBBridgeGPIO_pinSet);
 
 		CASE2FUNC(USB_CMD_GPIO_PIN_READ, RJTUSBBridgeGPIO_pinRead);
+
+		CASE2FUNC(USB_CMD_GPIO_GET_INTERRUPT_STATUS, RJTUSBBridgeGPIO_getInterruptStatus);
+
+		CASE2FUNC(USB_CMD_GPIO_CLEAR_INTERRUPT_STATUS, RJTUSBBridgeGPIO_clearInterruptStatus);
+
+		CASE2FUNC(USB_CMD_GPIO_ENABLE_PIN_INTERRUPT, RJTUSBBridgeGPIO_enablePinInterrupt);
+
+		CASE2FUNC(USB_CMD_SPIM_TRANSFER_DATA, RJTUSBBridgeSPIM_transferData);
 
 		default:
 			ret_code = RJT_USB_ERROR_UNKNOWN_CMD;
@@ -166,6 +207,8 @@ bool RJTUSBBridge_processControlRequestWrite(
 			*dst_buf = NULL;
 			*dst_buflen = 0;
 
+			RJTUSBBridgeConfig_reset();
+			
 			RJTLogger_print("Resetting usb bridge...");
 		} break;
 
@@ -180,5 +223,6 @@ bool RJTUSBBridge_processControlRequestWrite(
 
 void RJTUSBBridge_init(void)
 {
-	RJTUSBBridge_configInit();
+	RJTUSBBridgeConfig_init();
+	RJTUSBBridgeGPIO_init();
 }

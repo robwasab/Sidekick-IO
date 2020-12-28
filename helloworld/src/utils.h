@@ -18,4 +18,8 @@
 
 #define ARRAY_SIZE(a)									(sizeof(a)/sizeof(a[0]))
 
+#define APP_HIGH_PRIORITY					4
+#define APP_MID_PRIORITY					5
+#define APP_LOW_PRIORITY					6
+
 #endif /* UTILS_H_ */

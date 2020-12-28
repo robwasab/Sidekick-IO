@@ -29,16 +29,16 @@ typedef struct {
 	usb_iface_desc_t  iface;
 	   usb_ep_desc_t  ep_write;
 	   usb_ep_desc_t  ep_read;
-	   //usb_ep_desc_t  ep_notify;
+	   usb_ep_desc_t  ep_notify;
 } udi_vendor_desc_t;
 
-#define UDI_VENDOR_EP_SIZE				32
+#define UDI_VENDOR_EP_SIZE				64
 
 #define UDI_VENDOR_DESC {		  														\
 	.iface.bLength            = sizeof(usb_iface_desc_t),		\
   .iface.bDescriptorType    = USB_DT_INTERFACE,						\
 	.iface.bAlternateSetting  = 0,													\
-	.iface.bNumEndpoints		  = 2,													\
+	.iface.bNumEndpoints		  = 3,													\
 	.iface.bInterfaceClass    = 0xff,												\
   .iface.bInterfaceSubClass = 0xff,												\
 	.iface.bInterfaceProtocol = 0xff,											  \
@@ -55,7 +55,13 @@ typedef struct {
   .ep_read.bEndpointAddress= UDI_VENDOR_EP_READ_ADDR,     \
   .ep_read.bmAttributes    = USB_EP_TYPE_BULK,						\
   .ep_read.bInterval       = 0,                           \
-  .ep_read.wMaxPacketSize  = LE16(UDI_VENDOR_EP_SIZE)     \
+  .ep_read.wMaxPacketSize  = LE16(UDI_VENDOR_EP_SIZE),    \
+  .ep_notify.bLength         = sizeof(usb_ep_desc_t),     \
+  .ep_notify.bDescriptorType = USB_DT_ENDPOINT,           \
+  .ep_notify.bEndpointAddress= UDI_VENDOR_EP_NOTIFY_ADDR, \
+  .ep_notify.bmAttributes    = USB_EP_TYPE_INTERRUPT,		  \
+  .ep_notify.bInterval       = 100,                       \
+  .ep_notify.wMaxPacketSize  = LE16(UDI_VENDOR_EP_SIZE)   \
 }
 
 

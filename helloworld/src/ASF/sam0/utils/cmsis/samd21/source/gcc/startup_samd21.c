@@ -271,8 +271,22 @@ void Reset_Handler(void)
 /**
  * \brief Default interrupt handler for unused IRQs.
  */
-void Dummy_Handler(void)
-{
-        while (1) {
-        }
-}
+
+ 
+ #pragma GCC push_options
+ #pragma GCC optimize("O0")
+
+ void Dummy_Handler(void)
+ {
+	extern uint32_t get_nvic_pending(void);
+
+	 volatile uint32_t irq_pending = get_nvic_pending();
+
+	 __ASM("BKPT");
+	 while(1) {
+
+	 }
+ }
+
+ #pragma GCC pop_options
+

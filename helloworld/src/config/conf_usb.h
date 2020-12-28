@@ -442,6 +442,7 @@ extern void user_callback_sof_action(void);
 
 #define UDI_VENDOR_EP_WRITE_ADDR  (4 | USB_EP_DIR_OUT)
 #define UDI_VENDOR_EP_READ_ADDR   (5 | USB_EP_DIR_IN)
+#define UDI_VENDOR_EP_NOTIFY_ADDR (6 | USB_EP_DIR_IN)
 
 #define UDI_VENDOR_NUM_INTERFACES 1
 #define UDI_VENDOR_NUM_ENDPOINTS	2
