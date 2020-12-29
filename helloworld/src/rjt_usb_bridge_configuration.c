@@ -15,6 +15,7 @@
 
 static enum RJT_USB_CONFIG __mCurrentConfig = RJT_USB_CONFIG_GPIO;
 
+
 static struct {
 	struct spi_module  instance;
 	             bool  enabled;
@@ -33,19 +34,20 @@ static struct {
  * PB06
  * PB07
  */
-	
-static uint8_t mConfig2GPIOs[RJT_USB_CONFIG_MAX][RJT_USB_BRIDGE_NUM_GPIOS] = {
-
-	[RJT_USB_CONFIG_GPIO]       = {PIN_PB00, PIN_PB01, PIN_PB06, PIN_PB07, PIN_PB02, PIN_PB03, PIN_PB04, PIN_PB05},
-	[RJT_USB_CONFIG_SPI_MASTER] = {    0xff,     0xff, PIN_PB06, PIN_PB07,     0xff,     0xff, PIN_PB04, PIN_PB05},
-	/*                                   ^         ^                             ^         ^
-	 *                                   |         |                             |         |
-	 *                                  SS        MISO                          MOSI      SCK
-	 */
-	[RJT_USB_CONFIG_SPI_SLAVE]  = {    0xff,     0xff,     0xff,     0xff, PIN_PB02, PIN_PB03, PIN_PB04, PIN_PB05},
+static uint8_t mIndex2Pin[RJT_USB_BRIDGE_NUM_GPIOS] = {
+	PIN_PB00, PIN_PB01, PIN_PB06, PIN_PB07, PIN_PB02, PIN_PB03, PIN_PB04, PIN_PB05,
 };
 
 
+static uint8_t mConfig2Override[RJT_USB_CONFIG_MAX][RJT_USB_BRIDGE_NUM_GPIOS] = {
+	[RJT_USB_CONFIG_GPIO]       = {0},	// No override necessary
+	[RJT_USB_CONFIG_SPI_MASTER] = {
+		[0] = 0xff,	// SS
+		[1] = 0xff,	// MISO
+		[4] = 0xff,	// MOSI
+		[5] = 0xff, // SCK
+	},
+};
 
 
 static uint8_t pin2extint[] = {
@@ -57,14 +59,24 @@ static uint8_t pin2extint[] = {
 
 static enum RJT_USB_CONFIG read_current_config(void)
 {
-	enum RJT_USB_CONFIG ret;
-
-	system_interrupt_enter_critical_section();
-	ret = __mCurrentConfig;
-	system_interrupt_leave_critical_section();
-	
-	return ret;
+	return __mCurrentConfig;
 };
+
+
+static uint8_t config2gpio(enum RJT_USB_CONFIG config, uint8_t index)
+{
+	ASSERT(index < RJT_USB_BRIDGE_NUM_GPIOS);
+
+	// Check to see if the index is not overridden 
+	if(0 == mConfig2Override[config][index]) {
+		// Pin is not overridden, return gpio
+		return mIndex2Pin[index];
+	}
+	else {
+		// This pin is in use
+		return 0xff;
+	}
+}
 
 
 void RJTUSBBridgeConfig_gpio2index(uint8_t gpio, bool * success, uint8_t * index)
@@ -75,7 +87,7 @@ void RJTUSBBridgeConfig_gpio2index(uint8_t gpio, bool * success, uint8_t * index
 
 	for(k = 0; k < RJT_USB_BRIDGE_NUM_GPIOS; ++k)
 	{
-		if(gpio == mConfig2GPIOs[current_config][k]) {
+		if(gpio == config2gpio(current_config, k)) {
 			break;
 		}
 	}
@@ -120,7 +132,7 @@ static enum RJT_USB_ERROR config_gpio(void)
 	for(k = 0; k < RJT_USB_BRIDGE_NUM_GPIOS; k++)
 	{
 		// Set to input, no pull up or down, disable input buffer.
-		port_pin_set_config(mConfig2GPIOs[RJT_USB_CONFIG_GPIO][k], &default_config);
+		port_pin_set_config(config2gpio(RJT_USB_CONFIG_GPIO, k), &default_config);
 
 		uint8_t extint = 0xff;
 		bool success = false;
@@ -242,11 +254,11 @@ void RJTUSBBridgeConfig_index2gpio(uint8_t index, bool * success, uint8_t * gpio
 
 	if(index < RJT_USB_BRIDGE_NUM_GPIOS) 
 	{
-		uint8_t gpio_num = mConfig2GPIOs[current_config][index];
+		uint8_t gpio_num = config2gpio(current_config, index);
 
 		if(0xff != gpio_num) 
 		{
-			*gpio = mConfig2GPIOs[current_config][index];
+			*gpio = config2gpio(current_config, index);
 			*success = true;
 		}
 		else {

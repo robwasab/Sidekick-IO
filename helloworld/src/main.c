@@ -38,14 +38,14 @@
 #include "rjt_logger.h"
 #include "rjt_queue.h"
 #include "rjt_usb_bridge.h"
+#include "rjt_uart.h"
+
 #include "utils.h"
 
 static volatile bool cdc_enabled = false;
 static uint32_t current_ticks = 0;
 static uint32_t last_ticks = 0;
 
-static RJTQueue mTxQueue;
-static uint8_t	mTxQueueBuffer[128];
 
 void SysTick_Handler(void)
 {
@@ -85,6 +85,8 @@ static void my_fault_handler(uint32_t stack_pointer)
 	struct SavedContext * saved_context =
 	(struct SavedContext *) stack_pointer;
 
+	uint32_t pending_nvic = get_nvic_pending();
+
 	__ASM("BKPT");
 	while(1) {
 
@@ -120,20 +122,6 @@ __attribute__((naked)) void HardFault_Handler(void)
 #pragma GCC pop_options
 
 
-static bool enqueue_cdc_msg(void * data, size_t len)
-{
-	if(len <= RJTQueue_getSpaceAvailable(&mTxQueue))
-	{
-		bool success =
-		RJTQueue_enqueue(&mTxQueue, data, len);
-		ASSERT(success);
-		return true;
-	}
-	else {
-		return false;
-	}
-}
-
 
 bool user_callback_cdc_enable(void)
 {
@@ -150,6 +138,7 @@ bool user_callback_cdc_enable(void)
 void user_callback_cdc_disable(uint8_t port)
 {
 	(void) port;
+	cdc_enabled = false;
 }
 
 
@@ -166,48 +155,40 @@ void user_callback_cdc_rx_notify(uint8_t port)
 }
 
 
-static void process_cdc_rx_data(const uint8_t * data, size_t len)
-{
-	uint8_t line[17];
-
-	const uint8_t * ptr = data;
-
-	while(len) {
-		size_t num2cpy = MIN(len, sizeof(line) - 1);
-
-		memcpy(line, ptr, num2cpy);
-
-		line[num2cpy] = '\0';
-
-		ptr += num2cpy;
-		len -= num2cpy;
-
-		RJTLogger_print("%s", line);
-	}
-}
-
+/**
+ * This could be optimized
+ */
+#pragma GCC push_options
+#pragma GCC optimize("O0")
 
 static void process_cdc(void)
 {
-	uint8_t buf[32];
+	//system_interrupt_enter_critical_section();
+
+	uint8_t buf[128];
 	size_t num2read;
 
-	if(0 < RJTQueue_getNumEnqueued(&mTxQueue))
+	// Send the UART RX Data (to the host)
+	if(udi_cdc_is_tx_ready())
 	{
-		
-		num2read = MIN(sizeof(buf), RJTQueue_getNumEnqueued(&mTxQueue));
+		if(0 < RJTUart_getNumReadable())
+		{
+			num2read = MIN(sizeof(buf), RJTUart_getNumReadable());
 
-		bool success = 
-			RJTQueue_dequeue(&mTxQueue, buf, num2read);
+			RJTUart_dequeueFromReadQueue(buf, num2read);
 
-		ASSERT(success);
-
-		iram_size_t numsent =
-		 udi_cdc_write_buf(buf, num2read);
-		ASSERT(0 == numsent);
+			// Send the data to the host
+			iram_size_t numsent =
+				udi_cdc_write_buf(buf, num2read);
+			ASSERT(0 == numsent);
+		}
 	}
 
-	if(udi_cdc_is_rx_ready())
+	// Read the data the host sent us, so we can send it (via UART tx)
+	
+	bool rx_ready = udi_cdc_is_rx_ready();
+
+	if(rx_ready)
 	{
 		iram_size_t num_avail = udi_cdc_get_nb_received_data();
 
@@ -215,14 +196,18 @@ static void process_cdc(void)
 		{
 			// read the received data
 			num2read = MIN(num_avail, sizeof(buf));
+			num2read = MIN(num2read, RJTUart_getWriteQueueAvailableSpace());
 
 			iram_size_t num_remaining = udi_cdc_read_buf(buf, num2read);
 			ASSERT(0 == num_remaining);
 
-			process_cdc_rx_data(buf, num2read);
+			RJTUart_enqueueIntoWriteQueue(buf, num2read);
 		}
 	}
+	//system_interrupt_leave_critical_section();
 }
+#pragma GCC pop_options
+
 
 static void log_gclk_generator(uint8_t gen_id)
 {
@@ -362,9 +347,8 @@ int main (void)
 {
 	extern uint32_t _sstack;
 
+	// stack watermark
 	*(&_sstack) = 0xDEADBEEF;
-
-	RJTQueue_init(&mTxQueue, mTxQueueBuffer, sizeof(mTxQueueBuffer));
 	
 	system_init();
 
@@ -372,6 +356,9 @@ int main (void)
 
 	RJTLogger_print("Logger Initialized");
 	RJTLogger_process();
+
+	// This is the UART module used by the serial bridge (not for logging)
+	RJTUart_init();
 
 	RJTUSBBridge_init();
 	
@@ -414,14 +401,11 @@ int main (void)
 		if(cdc_enabled) {
 			process_cdc();
 
-			if(current_ticks - last_ticks > 1000)
+			if(current_ticks - last_ticks > 500)
 			{
 				last_ticks = current_ticks;
 
-				char msg[] = "Helloworld from CDC\n";
-
-				RJTLogger_print("Sending hello world");
-				enqueue_cdc_msg(msg, sizeof(msg));
+				RJTUart_testTransmit();
 			}
 		}
 	
