@@ -623,6 +623,7 @@ static bool udi_cdc_rx_start(uint8_t port)
 	cpu_irq_restore(flags);
 
 	if (udi_cdc_multi_is_rx_ready(port)) {
+		// call application code to tell them to read more data!
 		UDI_CDC_RX_NOTIFY(port);
 	}
 	// Send the buffer with enable of short packet
@@ -1017,6 +1018,52 @@ iram_size_t udi_cdc_multi_read_no_polling(uint8_t port, void* buf, iram_size_t s
 	return(nb_avail_data);
 }
 
+#include "utils.h"
+
+enum UDI_CDC_STATUS udi_cdc_multi_read_no_block(
+		uint8_t port, void * buf, iram_size_t size, iram_size_t * num_read)
+{
+	iram_size_t nb_avail_data;
+	uint16_t pos;
+	uint8_t buf_sel;
+	irqflags_t flags;
+
+	#if UDI_CDC_PORT_NB == 1
+	port = 0;
+	#endif
+
+	if(false == udi_cdc_data_running) {
+		return UDI_CDC_STATUS_NOT_READY;
+	}
+
+	// critical section
+	flags = cpu_irq_save();
+	{
+		pos = udi_cdc_rx_pos[port];
+		buf_sel = udi_cdc_rx_buf_sel[port];
+		nb_avail_data = udi_cdc_rx_buf_nb[port][buf_sel] - pos;
+	}
+	cpu_irq_restore(flags);
+
+	size = MIN(nb_avail_data, size);
+
+	if(size > 0) {
+		// critical section
+		flags = cpu_irq_save();
+		{
+			memcpy(buf, &udi_cdc_rx_buf[port][buf_sel][pos], size);
+			udi_cdc_rx_pos[port] += size;
+
+			*num_read = size;
+		}
+		cpu_irq_restore(flags);
+		udi_cdc_rx_start(port);	
+	}
+
+	return UDI_CDC_STATUS_OK;
+}
+
+
 iram_size_t udi_cdc_read_no_polling(void* buf, iram_size_t size)
 {
 	return udi_cdc_multi_read_no_polling(0, buf, size);
@@ -1041,6 +1088,8 @@ iram_size_t udi_cdc_multi_get_free_tx_buffer(uint8_t port)
 	buf_sel = udi_cdc_tx_buf_sel[port];
 	buf_sel_nb = udi_cdc_tx_buf_nb[port][buf_sel];
 	if (buf_sel_nb == UDI_CDC_TX_BUFFERS) {
+		// current buffer is full
+
 		if ((!udi_cdc_tx_trans_ongoing[port])
 			&& (!udi_cdc_tx_both_buf_to_send[port])) {
 			/* One buffer is full, but the other buffer is not used.
@@ -1051,6 +1100,8 @@ iram_size_t udi_cdc_multi_get_free_tx_buffer(uint8_t port)
 			buf_sel_nb = 0;
 		}
 	}
+
+	// return the free space
 	retval = UDI_CDC_TX_BUFFERS - buf_sel_nb;  
 	cpu_irq_restore(flags);
 	return retval;
@@ -1111,6 +1162,63 @@ int udi_cdc_putc(int value)
 {
 	return udi_cdc_multi_putc(0, value);
 }
+
+
+enum UDI_CDC_STATUS udi_cdc_multi_write_buf_no_block(
+		uint8_t port, const void * buf, iram_size_t size, iram_size_t * num_written)
+{
+	irqflags_t flags;
+	uint8_t buf_sel;
+	uint16_t buf_nb;
+	iram_size_t copy_nb;
+	uint8_t * ptr_buf = (uint8_t *)buf;
+
+	#if UDI_CDC_PORT_NB == 1
+	port = 0;
+	#endif
+
+	if(9 == udi_cdc_line_coding[port].bDataBits) {
+		size *= 2;
+	}
+
+	if(false == udi_cdc_data_running) {
+		// data interface has not been enabled yet
+		*num_written = 0;
+		return UDI_CDC_STATUS_NOT_READY;
+	}
+	
+
+	if(false == udi_cdc_multi_is_tx_ready(port)) {
+		*num_written = 0;
+		return UDI_CDC_STATUS_BUFFER_FULL;
+	}
+
+	// Critical section
+	// get the current tx buffer, and determine how many bytes
+	// we can put into it
+	flags = cpu_irq_save();
+	{
+		buf_sel = udi_cdc_tx_buf_sel[port];
+		buf_nb = udi_cdc_tx_buf_nb[port][buf_sel];
+		copy_nb = UDI_CDC_TX_BUFFERS - buf_nb;
+
+		copy_nb = MIN(copy_nb, size);
+
+		// copy data into the current buffer determined by
+		// port -> buf_sel -> buf_nb (byte offset into buffer)
+		memcpy(&udi_cdc_tx_buf[port][buf_sel][buf_nb], ptr_buf, copy_nb);
+
+		// tell the caller how many bytes we wrote
+		*num_written = copy_nb;
+
+		// advance buffer pointer
+		udi_cdc_tx_buf_nb[port][buf_sel] = buf_nb + copy_nb;
+	}
+	cpu_irq_restore(flags);
+
+	return UDI_CDC_STATUS_OK;
+}
+
 
 iram_size_t udi_cdc_multi_write_buf(uint8_t port, const void* buf, iram_size_t size)
 {

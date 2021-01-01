@@ -42,11 +42,6 @@
 
 #include "utils.h"
 
-static volatile bool cdc_enabled = false;
-static uint32_t current_ticks = 0;
-static uint32_t last_ticks = 0;
-
-
 void SysTick_Handler(void)
 {
 }
@@ -54,7 +49,7 @@ void SysTick_Handler(void)
 
 void user_callback_sof_action(void)
 {
-	++current_ticks;	
+	RJTUart_sofCallback();
 }
 
 
@@ -121,92 +116,6 @@ __attribute__((naked)) void HardFault_Handler(void)
 
 #pragma GCC pop_options
 
-
-
-bool user_callback_cdc_enable(void)
-{
-	RJTLogger_print("cdc enabled");
-	
-	cdc_enabled = true;
-
-	current_ticks = 0;
-	last_ticks = 0;
-	return true;
-}
-
-
-void user_callback_cdc_disable(uint8_t port)
-{
-	(void) port;
-	cdc_enabled = false;
-}
-
-
-void user_callback_cdc_set_line_coding(uint8_t port, usb_cdc_line_coding_t * cfg)
-{
-	RJTLogger_print("setting line encoding...");
-	RJTLogger_print("baud: %d", cfg->dwDTERate);
-}
-
-
-void user_callback_cdc_rx_notify(uint8_t port)
-{
-	RJTLogger_print("rx notify!");
-}
-
-
-/**
- * This could be optimized
- */
-#pragma GCC push_options
-#pragma GCC optimize("O0")
-
-static void process_cdc(void)
-{
-	//system_interrupt_enter_critical_section();
-
-	uint8_t buf[128];
-	size_t num2read;
-
-	// Send the UART RX Data (to the host)
-	if(udi_cdc_is_tx_ready())
-	{
-		if(0 < RJTUart_getNumReadable())
-		{
-			num2read = MIN(sizeof(buf), RJTUart_getNumReadable());
-
-			RJTUart_dequeueFromReadQueue(buf, num2read);
-
-			// Send the data to the host
-			iram_size_t numsent =
-				udi_cdc_write_buf(buf, num2read);
-			ASSERT(0 == numsent);
-		}
-	}
-
-	// Read the data the host sent us, so we can send it (via UART tx)
-	
-	bool rx_ready = udi_cdc_is_rx_ready();
-
-	if(rx_ready)
-	{
-		iram_size_t num_avail = udi_cdc_get_nb_received_data();
-
-		if(0 < num_avail)
-		{
-			// read the received data
-			num2read = MIN(num_avail, sizeof(buf));
-			num2read = MIN(num2read, RJTUart_getWriteQueueAvailableSpace());
-
-			iram_size_t num_remaining = udi_cdc_read_buf(buf, num2read);
-			ASSERT(0 == num_remaining);
-
-			RJTUart_enqueueIntoWriteQueue(buf, num2read);
-		}
-	}
-	//system_interrupt_leave_critical_section();
-}
-#pragma GCC pop_options
 
 
 static void log_gclk_generator(uint8_t gen_id)
@@ -398,17 +307,8 @@ int main (void)
 		}
 		#endif
 		
-		if(cdc_enabled) {
-			process_cdc();
+		RJTUart_processCDC();
 
-			if(current_ticks - last_ticks > 500)
-			{
-				last_ticks = current_ticks;
-
-				RJTUart_testTransmit();
-			}
-		}
-	
 		RJTLogger_process();
 	}
 }

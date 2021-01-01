@@ -7,13 +7,10 @@
 
 void RJTUart_init(void);
 
-void RJTUart_dequeueFromReadQueue(uint8_t * outdata, size_t num);
-
-size_t RJTUart_getNumReadable(void);
-
-void RJTUart_enqueueIntoWriteQueue(const uint8_t * indata, size_t len);
-
-size_t RJTUart_getWriteQueueAvailableSpace(void);
-
 void RJTUart_testTransmit(void);
+
+void RJTUart_sofCallback(void);
+
+void RJTUart_processCDC(void);
+
 

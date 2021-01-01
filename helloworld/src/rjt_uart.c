@@ -8,6 +8,7 @@
 #include <string.h>
 #include <usart.h>
 #include <asf.h>
+#include <conf_usb.h>
 
 #include "rjt_logger.h"
 #include "rjt_queue.h"
@@ -41,6 +42,52 @@ static RJTQueue mTxQueue;
 static uint8_t  mRxQueueBuffer[128];
 static RJTQueue mRxQueue;
 
+static volatile bool mCDCEnabled = false;
+static uint32_t mCurrentTicks;
+static uint32_t mLastTicks;
+
+/************************************************************************
+ * USB CDC Callbacks
+ ************************************************************************/
+
+
+bool user_callback_cdc_enable(void)
+{
+	RJTLogger_print("cdc enabled");
+	 
+	mCDCEnabled = true;
+
+	mCurrentTicks = 0;
+	mLastTicks = 0;
+	return true;
+}
+
+
+ void user_callback_cdc_disable(uint8_t port)
+ {
+	 (void) port;
+	 mCDCEnabled = false;
+ }
+
+
+ void user_callback_cdc_set_line_coding(uint8_t port, usb_cdc_line_coding_t * cfg)
+ {
+	 RJTLogger_print("setting line encoding...");
+	 RJTLogger_print("baud: %d", cfg->dwDTERate);
+ }
+
+
+ /**
+  * Called after USB host sent us data
+	*/
+ void user_callback_cdc_rx_notify(uint8_t port)
+ {
+	 //RJTLogger_print("rx notify!");
+ }
+
+/************************************************************************
+ * UART Callbacks
+ ************************************************************************/
 
 static void dequeue_and_transmit(void)
 {
@@ -108,13 +155,23 @@ static void callback_receive_started(struct usart_module * module)
 }
 
 
-size_t RJTUart_getWriteQueueAvailableSpace(void)
+/************************************************************************
+ * Private
+ ************************************************************************/
+
+/**
+ * Return the available space in the uart tx queue (data we send out)
+ */
+static size_t get_write_queue_available_space(void)
 {
 	return RJTQueue_getSpaceAvailable(&mTxQueue);
 }
 
 
-void RJTUart_enqueueIntoWriteQueue(const uint8_t * indata, size_t len)
+/**
+ * Enqueue data in the write queue (data we send out)
+ */
+static void enqueue_into_write_queue(const uint8_t * indata, size_t len)
 {
 	// Enter critical section, we don't want the queue growing unexpectedly in this code
 	system_interrupt_enter_critical_section();
@@ -134,15 +191,190 @@ void RJTUart_enqueueIntoWriteQueue(const uint8_t * indata, size_t len)
 }
 
 
-size_t RJTUart_getNumReadable(void)
+/**
+ * Get the number of bytes available for reading (data received by the uart)
+ */
+static size_t get_num_readable(void)
 {
 	return RJTQueue_getNumEnqueued(&mRxQueue);
 }
 
-void RJTUart_dequeueFromReadQueue(uint8_t * outdata, size_t num)
+
+/**
+ * Dequeue data from the read queue (data received by the uart)
+ */
+static void dequeue_from_read_queue(uint8_t * outdata, size_t num)
 {
 	RJTQueue_dequeue(&mRxQueue, outdata, num);
 }
+
+struct CachedBuffer {
+	uint8_t  buf[64];
+	 size_t  buf_pos;
+	 size_t  buf_size;
+	   bool  dirty;
+};
+
+
+static void process_cdc_tx(void)
+{
+	static struct CachedBuffer write_buf = {0};
+
+	// Send the UART RX Data (to the host)
+	if(false == udi_cdc_is_tx_ready()) {
+		return;
+	}
+
+	if(false == write_buf.dirty)
+	{
+		// load data into write buffer
+		size_t num_readable = get_num_readable();
+				
+		if(0 < num_readable) {
+			size_t num2read;
+
+			num2read = MIN(sizeof(write_buf.buf), num_readable);
+
+			dequeue_from_read_queue(write_buf.buf, num2read);
+					
+			// reset buffer to beginning
+			write_buf.buf_size = num2read;
+			write_buf.buf_pos = 0;
+			write_buf.dirty = true;
+		}
+	}
+			
+	if(true == write_buf.dirty)
+	{
+		iram_size_t num_written = 0;
+
+		uint8_t * buf_ptr = &write_buf.buf[write_buf.buf_pos];
+		size_t buf_len = write_buf.buf_size - write_buf.buf_pos;
+				
+		enum UDI_CDC_STATUS status =
+		udi_cdc_multi_write_buf_no_block(
+			0,
+			buf_ptr,
+			buf_len,
+			&num_written);
+
+		if(UDI_CDC_STATUS_OK == status) {
+			// advance buffer pointer using num_written variable
+			write_buf.buf_pos += num_written;
+
+			ASSERT(write_buf.buf_pos <= write_buf.buf_size);
+
+			if(write_buf.buf_pos == write_buf.buf_size) {
+				// we've consumed all the data
+				write_buf.dirty = false;
+			}
+		}
+		else {
+			// An error occurred, try again later
+		}
+	}
+}
+
+
+static void process_cdc_rx(void)
+{
+	static struct CachedBuffer read_buf = {0};
+
+	// Read the data the host sent us, so we can send it (via UART tx)
+	
+	if(false == udi_cdc_is_rx_ready()) {
+		return;
+	}
+	
+
+	if(false == read_buf.dirty)
+	{
+		iram_size_t num_avail = udi_cdc_get_nb_received_data();
+
+		if(0 < num_avail)
+		{
+			size_t num2read;
+
+			// read the received data
+			num2read = MIN(num_avail, sizeof(read_buf.buf));
+
+			iram_size_t num_read = 0;
+			enum UDI_CDC_STATUS status = 
+				udi_cdc_multi_read_no_block(0, read_buf.buf, num2read, &num_read);
+	
+			if(UDI_CDC_STATUS_OK == status) {
+				ASSERT(0 < num_read);
+
+				read_buf.buf_pos = 0;
+				read_buf.buf_size = num_read;
+				read_buf.dirty = true;
+			}
+			else {
+				// an error occurred
+			}
+		}
+	}
+
+	if(true == read_buf.dirty)
+	{
+		size_t write_queue_space = get_write_queue_available_space();
+		
+		size_t buf_len = read_buf.buf_size - read_buf.buf_pos;
+		uint8_t * buf_ptr = &read_buf.buf[read_buf.buf_pos];
+
+		size_t num2enqueue = MIN(buf_len, write_queue_space);
+		
+		enqueue_into_write_queue(buf_ptr, num2enqueue);
+		
+		read_buf.buf_pos += num2enqueue;
+
+		ASSERT(read_buf.buf_pos <= read_buf.buf_size);
+
+		if(read_buf.buf_pos == read_buf.buf_size) {
+			// consumed all the data
+			read_buf.dirty = false;
+		}
+	}
+}
+
+
+/************************************************************************
+ * Public
+ ************************************************************************/
+
+void RJTUart_sofCallback(void)
+{
+	++mCurrentTicks;
+}
+
+
+/**
+ * This could be optimized
+ */
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+
+void RJTUart_processCDC(void)
+{
+	if(false == mCDCEnabled) {
+		return;
+	}
+
+	process_cdc_tx();
+
+	process_cdc_rx();
+
+	//system_interrupt_leave_critical_section();
+
+	if(mCurrentTicks > mLastTicks + 100)
+	{
+		mLastTicks = mCurrentTicks;
+
+		RJTUart_testTransmit();
+	}
+}
+
+#pragma GCC pop_options
 
 
 void RJTUart_init(void)
@@ -194,6 +426,7 @@ void RJTUart_init(void)
 	ASSERT(STATUS_OK == res);
 }
 
+
 void RJTUart_testTransmit(void)
 {
 	// Test to see what happens when we try to enqueue more data
@@ -219,17 +452,11 @@ void RJTUart_testTransmit(void)
 	}
 
 	system_interrupt_enter_critical_section();
-	while(0 < RJTUart_getWriteQueueAvailableSpace())
+	while(0 < get_write_queue_available_space())
 	{
-		size_t avail_space = RJTUart_getWriteQueueAvailableSpace();
+		size_t avail_space = get_write_queue_available_space();
 		size_t num2enqueue = MIN(avail_space, sizeof(tx_data));
-		RJTUart_enqueueIntoWriteQueue(tx_data, num2enqueue);
+		enqueue_into_write_queue(tx_data, num2enqueue);
 	}
 	system_interrupt_leave_critical_section();
-}
-
-void RJTUart_testReceive(void)
-{
-	// Test to see what happens when we try to enqueue more data
-	// than the rx queue can hold
 }

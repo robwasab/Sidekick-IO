@@ -576,6 +576,28 @@ int udi_cdc_multi_putc(uint8_t port, int value);
  * \return the number of data remaining
  */
 iram_size_t udi_cdc_multi_write_buf(uint8_t port, const void* buf, iram_size_t size);
+
+
+enum UDI_CDC_STATUS {
+	UDI_CDC_STATUS_OK,
+	UDI_CDC_STATUS_BUFFER_FULL,
+	UDI_CDC_STATUS_NOT_READY,
+};
+
+/**
+ * \brief Writes a RAM buffer on the CDC line but doesn't block.
+ * 
+ * \param port         Communication port number (usually zero)
+ * \param buf          Data to write
+ * \param size         Number of bytes to write
+ * \param num_written  Number of bytes enqueued into transmit buffer
+ */
+enum UDI_CDC_STATUS udi_cdc_multi_write_buf_no_block(
+		uint8_t port, const void * buf, iram_size_t size, iram_size_t * num_written);
+
+enum UDI_CDC_STATUS udi_cdc_multi_read_no_block(
+		uint8_t port, void * buf, iram_size_t size, iram_size_t * num_read);
+
 //@}
 
 //@}

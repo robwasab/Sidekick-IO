@@ -216,6 +216,32 @@ enum RJT_USB_ERROR RJTUSBBridgeGPIO_clearInterruptStatus(
 	return RJT_USB_ERROR_NONE;
 }
 
+enum RJT_USB_ERROR RJTUSBBridgeGPIO_parallelWrite(
+	const uint8_t * cmd_data, size_t cmd_len, uint8_t * rsp_data, size_t * rsp_len)
+{
+	RJT_USB_BRIDGE_BEGIN_CMD
+		uint32_t index_mask;
+	RJT_USB_BRIDGE_END_CMD
+
+	RJTLogger_print("GPIO: parallelWrite(): %b", cmd.index_mask);
+
+	const uint32_t port_mask = ((1 << RJT_USB_BRIDGE_NUM_GPIOS) - 1);
+
+	cmd.index_mask &= port_mask;
+
+	uint32_t portb = PORTB.OUT.reg;
+
+	// Clear the port mask
+	portb &= ~port_mask;
+
+	// Mask in the desired bits
+	portb |= port_mask;
+
+	// Write back to register
+	PORTB.OUT.reg = portb;
+
+	return RJT_USB_ERROR_NONE;
+}
 
 enum RJT_USB_ERROR RJTUSBBridgeGPIO_configureIndex(
 		const uint8_t * cmd_data, size_t cmd_len, uint8_t * rsp_data, size_t * rsp_len)
