@@ -94,7 +94,7 @@ static enum RJT_USB_ERROR process_cmd_echo(const uint8_t * cmd_data, size_t cmd_
 {
 	ASSERT(cmd_len <= *rsp_len);
 
-	//RJTLogger_print("cmd echo");
+	//RJTLogger_print("cmd echo: %d", cmd_len);
 
 	memcpy(rsp_data, cmd_data, cmd_len);
 

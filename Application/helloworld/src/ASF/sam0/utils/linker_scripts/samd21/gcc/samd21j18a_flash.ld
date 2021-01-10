@@ -146,6 +146,7 @@ SECTIONS
     .stack (NOLOAD):
     {
         . = ALIGN(8);
+				*(*.STACK_WATERMARK);
         _sstack = .;
         . = . + STACK_SIZE;
         . = ALIGN(8);
