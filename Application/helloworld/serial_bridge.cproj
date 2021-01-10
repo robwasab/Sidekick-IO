@@ -535,6 +535,7 @@
       <Value>../src/ASF/sam0/drivers/usb/usb_sam_d_r</Value>
       <Value>../src/ASF/sam0/drivers/usb/stack_interface</Value>
       <Value>../src/ASF/sam0/drivers/sercom/spi</Value>
+      <Value>../../../Common</Value>
     </ListValues>
   </armgcc.compiler.directories.IncludePaths>
   <armgcc.compiler.optimization.level>Optimize (-O1)</armgcc.compiler.optimization.level>
@@ -724,6 +725,42 @@
     <Folder Include="src\config\" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\..\Common\rjt_logger.c">
+      <SubType>compile</SubType>
+      <Link>src\rjt_logger.c</Link>
+    </Compile>
+    <Compile Include="..\..\Common\rjt_logger.h">
+      <SubType>compile</SubType>
+      <Link>src\rjt_logger.h</Link>
+    </Compile>
+    <Compile Include="..\..\Common\rjt_queue.c">
+      <SubType>compile</SubType>
+      <Link>src\rjt_queue.c</Link>
+    </Compile>
+    <Compile Include="..\..\Common\rjt_queue.h">
+      <SubType>compile</SubType>
+      <Link>src\rjt_queue.h</Link>
+    </Compile>
+    <Compile Include="..\..\Common\rjt_sprintf.c">
+      <SubType>compile</SubType>
+      <Link>src\rjt_sprintf.c</Link>
+    </Compile>
+    <Compile Include="..\..\Common\rjt_sprintf.h">
+      <SubType>compile</SubType>
+      <Link>src\rjt_sprintf.h</Link>
+    </Compile>
+    <Compile Include="..\..\Common\rjt_uart.c">
+      <SubType>compile</SubType>
+      <Link>src\rjt_uart.c</Link>
+    </Compile>
+    <Compile Include="..\..\Common\rjt_uart.h">
+      <SubType>compile</SubType>
+      <Link>src\rjt_uart.h</Link>
+    </Compile>
+    <Compile Include="..\..\Common\utils.h">
+      <SubType>compile</SubType>
+      <Link>src\utils.h</Link>
+    </Compile>
     <Compile Include="src\ASF\common\services\sleepmgr\samd\sleepmgr.c">
       <SubType>compile</SubType>
     </Compile>
@@ -784,30 +821,6 @@
     <Compile Include="src\rjt_external_interrupt_controller.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="src\rjt_logger.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\rjt_logger.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\rjt_queue.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\rjt_queue.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\rjt_sprintf.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\rjt_sprintf.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\rjt_uart.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\rjt_uart.h">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="src\rjt_usb_bridge.c">
       <SubType>compile</SubType>
     </Compile>
@@ -827,9 +840,6 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\udi_vendor.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\utils.h">
       <SubType>compile</SubType>
     </Compile>
     <None Include="atmel_devices_cdc.cat">
