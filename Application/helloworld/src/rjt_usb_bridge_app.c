@@ -5,7 +5,7 @@
  *  Author: robbytong
  */ 
 
-#include "rjt_usb_bridge.h"
+#include "rjt_usb_bridge_app.h"
 #include "rjt_logger.h"
 #include "utils.h"
 
@@ -15,32 +15,6 @@
 #include <samd21.h>
 
 static bool mSeqNo = false;
-
-
-enum USBCmd
-{
-	USB_CMD_ECHO           = 0x01,
-	USB_CMD_CFG            = 0x02,
-	USB_CMD_GPIO_CFG       = 0x03,
-	USB_CMD_GPIO_PIN_SET   = 0x04,
-	USB_CMD_GPIO_PIN_READ  = 0x05,
-	USB_CMD_GPIO_GET_INTERRUPT_STATUS    = 0x06,
-	USB_CMD_GPIO_CLEAR_INTERRUPT_STATUS  = 0x07,
-	USB_CMD_GPIO_ENABLE_PIN_INTERRUPT    = 0x08,
-	USB_CMD_GPIO_PARALLEL_WRITE = 0x09,
-	USB_CMD_SPIM_TRANSFER_DATA = 0x0A,
-};
-
-
-__PACKED_STRUCT USBHeader
-{
-	uint8_t seq_no:1;
-	uint8_t cmd:7;
-	uint8_t error;
-	uint8_t data[];
-};
-
-typedef struct USBHeader USBHeader;
 
 static uint32_t interrupt_status = 0;
 
@@ -188,11 +162,6 @@ void RJTUSBBridge_rspSent(void)
 {
 	//RJTLogger_print("rsp sent");
 }
-
-
-enum CNTRL_REQ {
-	CNTRL_REQ_RESET = 0x00
-};
 
 
 bool RJTUSBBridge_processControlRequestWrite(

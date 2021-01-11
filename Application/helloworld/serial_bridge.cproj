@@ -757,6 +757,18 @@
       <SubType>compile</SubType>
       <Link>src\rjt_uart.h</Link>
     </Compile>
+    <Compile Include="..\..\Common\rjt_usb_bridge.h">
+      <SubType>compile</SubType>
+      <Link>src\rjt_usb_bridge.h</Link>
+    </Compile>
+    <Compile Include="..\..\Common\udi_vendor.c">
+      <SubType>compile</SubType>
+      <Link>src\udi_vendor.c</Link>
+    </Compile>
+    <Compile Include="..\..\Common\udi_vendor.h">
+      <SubType>compile</SubType>
+      <Link>src\udi_vendor.h</Link>
+    </Compile>
     <Compile Include="..\..\Common\utils.h">
       <SubType>compile</SubType>
       <Link>src\utils.h</Link>
@@ -821,10 +833,10 @@
     <Compile Include="src\rjt_external_interrupt_controller.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="src\rjt_usb_bridge.c">
+    <Compile Include="src\rjt_usb_bridge_app.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="src\rjt_usb_bridge.h">
+    <Compile Include="src\rjt_usb_bridge_app.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\rjt_usb_bridge_configuration.c">
@@ -834,12 +846,6 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\rjt_usb_bridge_spi_master.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\udi_vendor.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="src\udi_vendor.h">
       <SubType>compile</SubType>
     </Compile>
     <None Include="atmel_devices_cdc.cat">

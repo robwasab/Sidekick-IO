@@ -6,7 +6,7 @@
  */ 
 
 #include "rjt_external_interrupt_controller.h"
-#include "rjt_usb_bridge.h"
+#include "rjt_usb_bridge_app.h"
 #include "rjt_logger.h"
 #include "utils.h"
 

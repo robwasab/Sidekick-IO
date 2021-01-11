@@ -1,13 +1,13 @@
 /*
- * rjt_usb_bridge.h
+ * rjt_usb_bridge_app.h
  *
  * Created: 11/14/2020 1:47:02 PM
  *  Author: robbytong
  */ 
 
 
-#ifndef RJT_USB_BRIDGE_H_
-#define RJT_USB_BRIDGE_H_
+#ifndef RJT_USB_BRIDGE_APP_H_
+#define RJT_USB_BRIDGE_APP_H_
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -16,45 +16,10 @@
 #include <string.h>
 #include <spi.h>
 
+#include "rjt_usb_bridge.h"
+
 #define RJT_USB_BRIDGE_NUM_GPIOS (8)
 
-void RJTUSBBridge_init(void);
-
-void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len, 
-		bool * send_cached_rsp, uint8_t * rsp_data, size_t * rsp_len);
-
-
-void RJTUSBBridge_rspSent(void);
-
-bool RJTUSBBridge_processControlRequestWrite(
-		uint8_t bRequest, 
-		uint16_t wValue, 
-		uint8_t ** dst_buf, 
-		uint16_t * dst_buflen);
-
-
-enum RJT_USB_ERROR {
-	RJT_USB_ERROR_NONE             = 0x00,
-	RJT_USB_ERROR_UNKNOWN_CMD      = 0x01,
-	RJT_USB_ERROR_NO_MEMORY        = 0x02,
-	RJT_USB_ERROR_MALFORMED_PACKET = 0x03,
-	RJT_USB_ERROR_RESOURCE_BUSY    = 0x04,
-	RJT_USB_ERROR_PARAMETER        = 0x05,
-};
-
-
-enum RJT_USB_CONFIG {
-	RJT_USB_CONFIG_GPIO       = 0x00,
-	RJT_USB_CONFIG_I2C_MASTER = 0x01,
-	RJT_USB_CONFIG_I2C_SLAVE  = 0x02,
-	RJT_USB_CONFIG_SPI_MASTER = 0x03,
-	RJT_USB_CONFIG_SPI_SLAVE  = 0x04,
-	RJT_USB_CONFIG_UART       = 0x05,
-	RJT_USB_CONFIG_MAX,
-};
-
-
-void RJTUSBBridge_setInterruptStatus(uint32_t interrupt_status);
 
 enum RJT_USB_INTERRUPT_BIT {
 	RJT_USB_INTERRUPT_BIT_GPIO = 0x00,
