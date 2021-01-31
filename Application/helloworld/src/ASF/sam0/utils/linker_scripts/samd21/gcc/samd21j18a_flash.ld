@@ -56,14 +56,25 @@ MEMORY
 /* The stack size used by the application. NOTE: you need to adjust according to your application. */
 STACK_SIZE = DEFINED(STACK_SIZE) ? STACK_SIZE : DEFINED(__stack_size__) ? __stack_size__ : 0x2000;
 
+APP_START_ADDR = 0x6400;
+
+/*APP_START_ADDR = 0;*/
+
 /* Section Definitions */
 SECTIONS
 {
-    .text :
+    .text APP_START_ADDR :
     {
-        . = ALIGN(4);
-        _sfixed = .;
+				. = ALIGN(4);
+				
+				_svector_table = .;
+				_sfixed = .;
         KEEP(*(.vectors .vectors.*))
+
+				_app_header_addr = .;
+				/* Put the fw header right below the vector table */
+				KEEP(src/main.o(.app_header))
+
         *(.text .text.* .gnu.linkonce.t.*)
         *(.glue_7t) *(.glue_7)
         *(.rodata .rodata* .gnu.linkonce.r.*)
@@ -146,7 +157,7 @@ SECTIONS
     .stack (NOLOAD):
     {
         . = ALIGN(8);
-				*(*.STACK_WATERMARK);
+				*(.STACK_WATERMARK .STACK_WATERMARK.*);
         _sstack = .;
         . = . + STACK_SIZE;
         . = ALIGN(8);

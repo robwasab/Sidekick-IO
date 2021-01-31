@@ -4,7 +4,8 @@
 #include "rjt_logger.h"
 #include "rjt_queue.h"
 #include "rjt_uart.h"
-
+#include "rjt_usb_bridge.h"
+#include "rjt_clock_logger.h"
 #include "utils.h"
 
 
@@ -64,6 +65,57 @@ __attribute__((naked)) void HardFault_Handler(void)
 
 #pragma GCC pop_options
 
+#include "bootloader.h"
+
+
+static bool run_application(void)
+{
+	union SKAppHeader * app_header = (union SKAppHeader *) (SK_APP_ADDR + sizeof(DeviceVectors));
+
+	if(SK_IMAGE_MAGIC == app_header->fields.magic)
+	{
+		RJTLogger_print("application present!");
+		
+		#define PRINT_FIELD(field, fmt)	RJTLogger_print(#field ": " fmt, app_header->fields.field); RJTLogger_process()
+		
+		PRINT_FIELD(header_version, "%x");
+		PRINT_FIELD(fw_major_version, "%x");
+		PRINT_FIELD(fw_minor_version, "%x");
+		PRINT_FIELD(fw_patch_version, "%x");
+		PRINT_FIELD(vector_table_addr, "%x");
+
+		// Flush
+		RJTLogger_process();
+
+		// Remap the vector table offset
+		uint32_t * vector_table_addr = 
+			(uint32_t *) SK_APP_ADDR; 
+		
+		SCB->VTOR = vector_table_addr;
+
+		RJTLogger_print("vector table addr: %x, %b", vector_table_addr, vector_table_addr);
+		RJTLogger_print("app stack addr: %x", vector_table_addr[0]);
+		RJTLogger_print("app reset addr: %x", vector_table_addr[1]);
+		
+		RJTLogger_process();
+
+		RJTLogger_deinit();
+
+		__asm volatile(
+			"msr msp, %0 \n"	/* copy reg 0 into stack pointer */
+			"bx %1       \n"	/* branch to address in reg 1 */
+			:	/* no outputs */
+			: "r"(vector_table_addr[0]), "r"(vector_table_addr[1])
+			: /* clobbered registers */
+		);
+
+		return true;
+	}
+	else {
+		RJTLogger_print("application not present...");
+		return false;
+	}
+}
 
 
 int main (void)
@@ -75,7 +127,14 @@ int main (void)
 	RJTLogger_print("Bootloader Initialized");
 	RJTLogger_process();
 
+	//run_application();
+	//RJTClockLogger_gclk();
+	//RJTClockLogger_powerManager();
+
+	RJTUSBBridge_init();
 	udc_start();
+
+	system_interrupt_enable_global();
 
 	/* Insert application code here, after the board has been initialized. */
 

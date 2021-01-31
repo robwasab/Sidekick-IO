@@ -69,6 +69,9 @@
 // From module: Memory Control Access Interface
 #include <ctrl_access.h>
 
+// From module: NVM - Non-Volatile Memory
+#include <nvm.h>
+
 // From module: PORT - GPIO Pin Control
 #include <port.h>
 

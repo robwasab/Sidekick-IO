@@ -49,7 +49,7 @@
 
 //! Device definition (mandatory)
 #define  USB_DEVICE_VENDOR_ID             USB_VID_ATMEL
-#define  USB_DEVICE_PRODUCT_ID            0xFFFF
+#define  USB_DEVICE_PRODUCT_ID            0xFFFE
 #define  USB_DEVICE_MAJOR_VERSION         1
 #define  USB_DEVICE_MINOR_VERSION         0
 #define  USB_DEVICE_POWER                 100 // Consumption on VBUS line (mA)
@@ -164,27 +164,28 @@ extern void user_callback_sof_action(void);
  * @{
  */
 //! Endpoints' numbers used by single or first CDC port
-#define  UDI_CDC_DATA_EP_IN_0          (1 | USB_EP_DIR_IN)  // TX
-#define  UDI_CDC_DATA_EP_OUT_0         (2 | USB_EP_DIR_OUT) // RX
-#define  UDI_CDC_COMM_EP_0             (3 | USB_EP_DIR_IN)  // Notify endpoint
+#define  UDI_CDC_DATA_EP_IN_0          (4 | USB_EP_DIR_IN)  // TX
+#define  UDI_CDC_DATA_EP_OUT_0         (5 | USB_EP_DIR_OUT) // RX
+#define  UDI_CDC_COMM_EP_0             (6 | USB_EP_DIR_IN)  // Notify endpoint
 //! Endpoints' numbers used by second CDC port (Optional)
-#define  UDI_CDC_DATA_EP_IN_2          (4 | USB_EP_DIR_IN)  // TX
-#define  UDI_CDC_DATA_EP_OUT_2         (5 | USB_EP_DIR_OUT) // RX
-#define  UDI_CDC_COMM_EP_2             (6 | USB_EP_DIR_IN)  // Notify endpoint
+#define  UDI_CDC_DATA_EP_IN_2          (7 | USB_EP_DIR_IN)  // TX
+#define  UDI_CDC_DATA_EP_OUT_2         (8 | USB_EP_DIR_OUT) // RX
+#define  UDI_CDC_COMM_EP_2             (9 | USB_EP_DIR_IN)  // Notify endpoint
 //! Endpoints' numbers used by third CDC port (Optional)
-#define  UDI_CDC_DATA_EP_IN_3          (7 | USB_EP_DIR_IN)  // TX
-#define  UDI_CDC_DATA_EP_OUT_3         (8 | USB_EP_DIR_OUT) // RX
-#define  UDI_CDC_COMM_EP_3             (9 | USB_EP_DIR_IN)  // Notify endpoint
+#define  UDI_CDC_DATA_EP_IN_3          (10 | USB_EP_DIR_IN)  // TX
+#define  UDI_CDC_DATA_EP_OUT_3         (11 | USB_EP_DIR_OUT) // RX
+#define  UDI_CDC_COMM_EP_3             (12 | USB_EP_DIR_IN)  // Notify endpoint
 
 //! Interface numbers used by single or first CDC port
-#define  UDI_CDC_COMM_IFACE_NUMBER_0   0
-#define  UDI_CDC_DATA_IFACE_NUMBER_0   1
+#define  UDI_CDC_COMM_IFACE_NUMBER_0   1
+#define  UDI_CDC_DATA_IFACE_NUMBER_0   2
 //! Interface numbers used by second CDC port (Optional)
-#define  UDI_CDC_COMM_IFACE_NUMBER_2   2
-#define  UDI_CDC_DATA_IFACE_NUMBER_2   3
+#define  UDI_CDC_COMM_IFACE_NUMBER_2   3
+#define  UDI_CDC_DATA_IFACE_NUMBER_2   4
 //! Interface numbers used by third CDC port (Optional)
-#define  UDI_CDC_COMM_IFACE_NUMBER_3   4
-#define  UDI_CDC_DATA_IFACE_NUMBER_3   5
+#define  UDI_CDC_COMM_IFACE_NUMBER_3   5
+#define  UDI_CDC_DATA_IFACE_NUMBER_3   6
+
 //@}
 //@}
 
@@ -440,14 +441,14 @@ extern void user_callback_sof_action(void);
 
 //... Eventually add other Interface Configuration
 
-#define UDI_VENDOR_EP_WRITE_ADDR  (4 | USB_EP_DIR_OUT)
-#define UDI_VENDOR_EP_READ_ADDR   (5 | USB_EP_DIR_IN)
-#define UDI_VENDOR_EP_NOTIFY_ADDR (6 | USB_EP_DIR_IN)
+#define UDI_VENDOR_EP_WRITE_ADDR  (1 | USB_EP_DIR_OUT)
+#define UDI_VENDOR_EP_READ_ADDR   (2 | USB_EP_DIR_IN)
+#define UDI_VENDOR_EP_NOTIFY_ADDR (3 | USB_EP_DIR_IN)
 
 #define UDI_VENDOR_NUM_INTERFACES 1
-#define UDI_VENDOR_NUM_ENDPOINTS	2
+#define UDI_VENDOR_NUM_ENDPOINTS	3
 
-#define UDI_VENDOR_IFACE_NUMBER		2
+#define UDI_VENDOR_IFACE_NUMBER		0
 //@}
 
 
@@ -485,27 +486,27 @@ extern void user_callback_cdc_rx_notify(uint8_t port);
 
 //! USB Interfaces descriptor structure
 #define UDI_COMPOSITE_DESC_T          \
+	udi_vendor_desc_t     udi_vendor;		\
 	udi_cdc_comm_desc_t   udi_cdc_comm; \
-	udi_cdc_data_desc_t   udi_cdc_data; \
-	udi_vendor_desc_t     udi_vendor
+	udi_cdc_data_desc_t   udi_cdc_data;
 
 //! USB Interfaces descriptor value for Full Speed
 #define UDI_COMPOSITE_DESC_FS                         \
+	.udi_vendor                = UDI_VENDOR_DESC,				\
 	.udi_cdc_comm              = UDI_CDC_COMM_DESC_0,   \
-	.udi_cdc_data              = UDI_CDC_DATA_DESC_0_FS,\
-	.udi_vendor                = UDI_VENDOR_DESC
+	.udi_cdc_data              = UDI_CDC_DATA_DESC_0_FS
 
 //! USB Interfaces descriptor value for High Speed
 #define UDI_COMPOSITE_DESC_HS                         \
+	.udi_vendor                = UDI_VENDOR_DESC,				\
 	.udi_cdc_comm              = UDI_CDC_COMM_DESC_0,   \
-	.udi_cdc_data              = UDI_CDC_DATA_DESC_0_HS,\
-	.udi_vendor                = UDI_VENDOR_DESC
+	.udi_cdc_data              = UDI_CDC_DATA_DESC_0_HS
 
 //! USB Interface APIs
 #define UDI_COMPOSITE_API  \
+	&udi_api_vendor,				 \
 	&udi_api_cdc_comm,       \
 	&udi_api_cdc_data,       \
-	&udi_api_vendor
 
 /* Example for device with cdc, msc and hid mouse interface
 #define UDI_COMPOSITE_DESC_T \

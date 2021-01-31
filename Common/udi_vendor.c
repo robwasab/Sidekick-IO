@@ -315,6 +315,7 @@ static bool udi_vendor_setup(void)
 				//RJTLogger_print("  wIndex: %x", udd_g_ctrlreq.req.wIndex);
 
 				ret_code = RJTUSBBridge_processControlRequestWrite(
+					udd_g_ctrlreq.req.bmRequestType,
 					udd_g_ctrlreq.req.bRequest,
 					udd_g_ctrlreq.req.wValue,
 					&udd_g_ctrlreq.payload,
@@ -336,7 +337,26 @@ static bool udi_vendor_setup(void)
 	{
 		// function -> host transfer
 
-		RJTLogger_print("function -> host cntr transfer not implemented...");
+		if(USB_REQ_TYPE_VENDOR == Udd_setup_type()) 
+		{
+			if(USB_REQ_RECIP_INTERFACE == Udd_setup_recipient()) 
+			{
+				ret_code = RJTUSBBridge_processControlRequestRead(
+					udd_g_ctrlreq.req.bmRequestType,
+					udd_g_ctrlreq.req.bRequest,
+					udd_g_ctrlreq.req.wValue,
+					&udd_g_ctrlreq.payload,
+					&udd_g_ctrlreq.payload_size);
+			}
+			else {
+				// not yet supported recipient
+				RJTLogger_print("IN: unsupported recipient type");	
+			}
+		}
+		else {
+			// not yet supported request type
+			RJTLogger_print("IN: unsupported request type");
+		}
 	}
 
 	CRITICAL_SECTION_EXIT();

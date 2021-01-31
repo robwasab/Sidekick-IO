@@ -15,5 +15,7 @@ void RJTLogger_print(const char fmt[], ...);
 
 void RJTLogger_init(void);
 
+void RJTLogger_deinit(void);
+
 
 #endif /* RJT_LOGGER_H_ */

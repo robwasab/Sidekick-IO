@@ -25,10 +25,24 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 void RJTUSBBridge_rspSent(void);
 
 bool RJTUSBBridge_processControlRequestWrite(
+		uint8_t bmRequest,
 		uint8_t bRequest,
 		uint16_t wValue,
 		uint8_t ** dst_buf,
 		uint16_t * dst_buflen);
+
+bool RJTUSBBridge_processControlRequestRead(
+		uint8_t bmRequest,
+		uint8_t bRequest,
+		uint16_t wValue,
+		uint8_t ** dst_buf,
+		uint16_t * dst_buflen);
+
+
+enum RJT_USB_BRIDGE_MODE {
+	RJT_USB_BRIDGE_MODE_APP = 0x00,
+	RJT_USB_BRIDGE_MODE_DFU = 0x01,
+};
 
 
 enum RJT_USB_ERROR {
@@ -68,9 +82,39 @@ enum USBCmd
 	USB_CMD_GPIO_ENABLE_PIN_INTERRUPT    = 0x08,
 	USB_CMD_GPIO_PARALLEL_WRITE = 0x09,
 	USB_CMD_SPIM_TRANSFER_DATA  = 0x0A,
-	USB_CMD_DFU_WRITE_BLOCK     = 0x0B,
-	USB_CMD_DFU_READ_BLOCK      = 0x0C,
-	USB_CMD_DFU_GET_STATUS      = 0x0D,
+	
+	USB_CMD_DFU_START           = 0x0B,
+	/**
+		Initiates a DFU update. This command erases the 
+		application flash memory area. It also resets the 
+		flash counter to the application flash base.
+	 */
+
+	USB_CMD_DFU_WRITE_DATA     = 0x0C,
+	/**
+		Writes the data provided to flash. Internally, data
+		is buffered, and once it reaches the size of a page,
+		(64 bytes), it is written to flash. The flash counter
+		is also incremented automatically.
+	 */
+	
+	USB_CMD_DFU_READ_DATA      = 0x0D,
+	/**
+		Reads data from the flash. After reading, the read
+		flash counter is incremented automatically.
+	 */
+
+	USB_CMD_DFU_RESET_READ_PTR	= 0x0E,
+	/**
+		Resets the read pointer to the beginning of the 
+		application base pointer.
+	 */
+
+	USB_CMD_DFU_DONE_WRITING = 0x0F,
+	/**
+		Finalizes the DFU update. Any remaining data stored
+		in the cache is written to NVM.
+	 */
 };
 
 
@@ -87,7 +131,8 @@ typedef struct USBHeader USBHeader;
 
 
 enum CNTRL_REQ {
-	CNTRL_REQ_RESET = 0x00
+	CNTRL_REQ_RESET = 0x00,
+	CNTRL_REQ_MODE  = 0x01,
 };
 
 

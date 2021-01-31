@@ -46,6 +46,10 @@
  * @{
  */
 
+#define UDD_CLOCK_GEN				GCLK_GENERATOR_1
+#define UDD_CLOCK_SOURCE		SYSTEM_CLOCK_SOURCE_DFLL
+
+
 //! Device definition (mandatory)
 #define  USB_DEVICE_VENDOR_ID             USB_VID_ATMEL
 #define  USB_DEVICE_PRODUCT_ID            0xFFFF
@@ -444,7 +448,7 @@
 #define UDI_VENDOR_EP_NOTIFY_ADDR (3 | USB_EP_DIR_IN)
 
 #define UDI_VENDOR_NUM_INTERFACES 1
-#define UDI_VENDOR_NUM_ENDPOINTS	2
+#define UDI_VENDOR_NUM_ENDPOINTS	3
 
 // Only one interface for the bootloader, so start at 0
 #define UDI_VENDOR_IFACE_NUMBER		0

@@ -98,6 +98,13 @@ void RJTLogger_print(const char fmt[], ...)
 	}
 }
 
+void RJTLogger_deinit(void)
+{
+	usart_disable(&usart_instance);
+
+	usart_reset(&usart_instance);
+}
+
 
 void RJTLogger_init(void)
 {

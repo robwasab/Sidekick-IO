@@ -165,9 +165,10 @@ void RJTUSBBridge_rspSent(void)
 
 
 bool RJTUSBBridge_processControlRequestWrite(
-		uint8_t bRequest, 
-		uint16_t wValue, 
-		uint8_t ** dst_buf, 
+		uint8_t bmRequest,
+		uint8_t bRequest,
+		uint16_t wValue,
+		uint8_t ** dst_buf,
 		uint16_t * dst_buflen)
 {
 	switch(bRequest)
@@ -191,6 +192,48 @@ bool RJTUSBBridge_processControlRequestWrite(
 
 	return true;
 }
+
+
+bool RJTUSBBridge_processControlRequestRead(
+		uint8_t bmRequest,
+		uint8_t bRequest,
+		uint16_t wValue,
+		uint8_t ** dst_buf,
+		uint16_t * dst_buflen)
+{
+	switch(bRequest)
+	{
+		case CNTRL_REQ_MODE: {
+			
+			if(bmRequest & USB_REQ_DIR_IN) {
+				// host is reading
+
+				if(bmRequest & USB_REQ_TYPE_VENDOR) {
+					// vendor request
+
+					if(bmRequest & USB_REQ_RECIP_INTERFACE) {
+						// request to the interface
+						static uint8_t mode = RJT_USB_BRIDGE_MODE_APP;
+						*dst_buf = &mode;
+						*dst_buflen = sizeof(mode);
+
+						RJTLogger_print("Mode: APP");
+						return true;
+					}
+				}
+			}
+			RJTLogger_print("Unknown ctrl request (mode)...");
+			return false;
+		} break;
+
+		default:
+			RJTLogger_print("Unknown cntrl req type: %x", bRequest);
+			return false;
+	}
+
+	return true;
+}
+
 
 
 void RJTUSBBridge_init(void)

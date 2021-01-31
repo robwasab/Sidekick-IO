@@ -25,8 +25,8 @@
     <preserveEEPROM>true</preserveEEPROM>
     <OverrideVtorValue>exception_table</OverrideVtorValue>
     <BootSegment>2</BootSegment>
-    <ResetRule>0</ResetRule>
-    <eraseonlaunchrule>0</eraseonlaunchrule>
+    <ResetRule>2</ResetRule>
+    <eraseonlaunchrule>1</eraseonlaunchrule>
     <EraseKey />
     <AsfFrameworkConfig>
       <framework-data>
@@ -725,6 +725,10 @@
     <Folder Include="src\config\" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\..\Common\bootloader.h">
+      <SubType>compile</SubType>
+      <Link>src\bootloader.h</Link>
+    </Compile>
     <Compile Include="..\..\Common\rjt_logger.c">
       <SubType>compile</SubType>
       <Link>src\rjt_logger.c</Link>

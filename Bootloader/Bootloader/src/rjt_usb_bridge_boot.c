@@ -6,6 +6,7 @@
  */ 
 
 #include "rjt_usb_bridge.h"
+#include "rjt_usb_bridge_boot.h"
 #include "rjt_logger.h"
 #include "utils.h"
 
@@ -15,8 +16,6 @@
 #include <samd21.h>
 
 static bool mSeqNo = false;
-
-static uint32_t interrupt_status = 0;
 
 
 void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
@@ -54,17 +53,24 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 	ASSERT(*rsp_len >= sizeof(USBHeader));
 	*rsp_len -= sizeof(USBHeader);
 
+	#define CASE2FUNC(cmd_id, cmd_func)																				\
+	case cmd_id:																															\
+		ret_code = cmd_func(cmd_header->data, cmd_len - sizeof(USBHeader),			\
+		rsp_header->data, rsp_len);																							\
+		break
+
 	
 	switch(cmd_header->cmd)
 	{
-		case USB_CMD_DFU_GET_STATUS:
-		case USB_CMD_DFU_READ_BLOCK:
-		case USB_CMD_DFU_WRITE_BLOCK:
-			break;
+		CASE2FUNC(USB_CMD_DFU_START,          RJTUSBBridgeDFU_start);
+		CASE2FUNC(USB_CMD_DFU_WRITE_DATA,     RJTUSBBridgeDFU_writeData);
+		CASE2FUNC(USB_CMD_DFU_READ_DATA,      RJTUSBBridgeDFU_readData);
+		CASE2FUNC(USB_CMD_DFU_RESET_READ_PTR, RJTUSBBridgeDFU_resetReadPtr);
+		CASE2FUNC(USB_CMD_DFU_DONE_WRITING,   RJTUSBBridgeDFU_doneWriting);
 
 		default:
-		ret_code = RJT_USB_ERROR_UNKNOWN_CMD;
-		break;
+			ret_code = RJT_USB_ERROR_UNKNOWN_CMD;
+			break;
 	}
 
 	// Response format is always:
@@ -84,6 +90,7 @@ void RJTUSBBridge_rspSent(void)
 
 
 bool RJTUSBBridge_processControlRequestWrite(
+		uint8_t bmRequest,
 		uint8_t bRequest,
 		uint16_t wValue,
 		uint8_t ** dst_buf,
@@ -102,6 +109,29 @@ bool RJTUSBBridge_processControlRequestWrite(
 			RJTLogger_print("Resetting usb bridge...");
 		} break;
 
+		case CNTRL_REQ_MODE: {
+			
+			if(bmRequest & USB_REQ_DIR_IN) {
+				// host is reading
+
+				if(bmRequest & USB_REQ_TYPE_VENDOR) {
+					// vendor request
+
+					if(bmRequest & USB_REQ_RECIP_INTERFACE) {
+						// request to the interface
+						static uint8_t mode = RJT_USB_BRIDGE_MODE_DFU;
+						*dst_buf = &mode;
+						*dst_buflen = sizeof(mode);
+
+						RJTLogger_print("Mode: DFU");
+						return true;
+					}
+				}
+			}
+			RJTLogger_print("Unknown ctrl request (mode)...");
+			return false;
+		} break;
+
 		default:
 		RJTLogger_print("Unknown cntrl req type: %x", bRequest);
 		return false;
@@ -111,6 +141,47 @@ bool RJTUSBBridge_processControlRequestWrite(
 }
 
 
+bool RJTUSBBridge_processControlRequestRead(
+		uint8_t bmRequest,
+		uint8_t bRequest,
+		uint16_t wValue,
+		uint8_t ** dst_buf,
+		uint16_t * dst_buflen)
+{
+	switch(bRequest)
+	{
+		case CNTRL_REQ_MODE: {
+			
+			if(bmRequest & USB_REQ_DIR_IN) {
+				// host is reading
+
+				if(bmRequest & USB_REQ_TYPE_VENDOR) {
+					// vendor request
+
+					if(bmRequest & USB_REQ_RECIP_INTERFACE) {
+						// request to the interface
+						static uint8_t mode = RJT_USB_BRIDGE_MODE_DFU;
+						*dst_buf = &mode;
+						*dst_buflen = sizeof(mode);
+
+						RJTLogger_print("Mode: DFU");
+						return true;
+					}
+				}
+			}
+			RJTLogger_print("Unknown ctrl request (mode)...");
+			return false;
+		} break;
+
+		default:
+		RJTLogger_print("Unknown cntrl req type: %x", bRequest);
+		return false;
+	}
+	return true;
+}
+
+
 void RJTUSBBridge_init(void)
 {
+	RJTUSBBridgeDFU_init();
 }

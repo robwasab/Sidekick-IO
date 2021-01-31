@@ -7,8 +7,26 @@
 #include "rjt_queue.h"
 #include "rjt_usb_bridge.h"
 #include "rjt_uart.h"
-
 #include "utils.h"
+#include "bootloader.h"
+
+extern uint32_t _svector_table;
+extern uint32_t _app_header_addr;
+
+__attribute__ ((section (".app_header")))
+union SKAppHeader app_header = {
+	.fields = {
+		.magic = SK_IMAGE_MAGIC,
+		.header_version = 0x00,
+		.image_type = SK_IMAGE_TYPE_APP,
+		.fw_major_version = 0x00,
+		.fw_minor_version = 0x00,
+		.fw_patch_version = 0x00,
+		.vector_table_addr = &_svector_table,
+		.git_sha = {0},
+	},
+};
+
 
 void SysTick_Handler(void)
 {
