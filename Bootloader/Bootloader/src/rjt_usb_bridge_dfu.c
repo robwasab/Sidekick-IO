@@ -17,9 +17,11 @@
 #define SK_NVM_SIZE_PAGES				(SK_NVM_SIZE_BYTES / NVMCTRL_PAGE_SIZE)
 #define SK_NVM_SIZE_ROWS				(SK_NVM_SIZE_PAGES / NVMCTRL_ROW_PAGES)
 
-#pragma GCC push_options
-#pragma GCC optimize("O0")
+//#pragma GCC push_options
+//#pragma GCC optimize("O0")
 
+static bool mResetCountDownEnabled = false;
+static uint32_t mResetCountDown = 0;
 
 static void erase_application(void)
 {
@@ -204,6 +206,49 @@ enum RJT_USB_ERROR RJTUSBBridgeDFU_doneWriting(
 }
 
 
+enum RJT_USB_ERROR RJTUSBBridgeDFU_reset(
+		const uint8_t * cmd_data, size_t cmd_len, uint8_t * rsp_data, size_t * rsp_len)
+{
+	RJTLogger_print("DFU: reset");
+	
+	RJT_USB_BRIDGE_BEGIN_CMD
+		uint8_t  mode;
+	RJT_USB_BRIDGE_END_CMD
+
+	if(cmd.mode >= RJT_USB_BRIDGE_MODE_MAX) {
+		return RJT_USB_ERROR_PARAMETER;
+	}
+
+	SK_SHARED_MEMORY_OBJ->fw_mode = cmd.mode;
+
+	system_interrupt_enter_critical_section();
+
+	mResetCountDown = 1000;
+	mResetCountDownEnabled = true;
+
+	system_interrupt_leave_critical_section();
+
+	return RJT_USB_ERROR_NONE;
+}
+
+
+static void my_sof_callback(void)
+{
+	if(mResetCountDownEnabled == true)
+	{
+		if(0 == mResetCountDown) {
+			RJTLogger_print("reset!");
+			NVIC_SystemReset();
+		}
+		mResetCountDown--;
+	}
+}
+
+
+SOF_REGISTER_CALLBACK(my_sof_callback);
+
+
+#if 0
 static void write_test_data(void)
 {
 	uint8_t buf[NVMCTRL_PAGE_SIZE];
@@ -229,14 +274,6 @@ static void write_test_data(void)
 
 		enqueue_dfu_data(&dfu, buf, sizeof(buf));
 
-		#if 0
-		enum status_code status;
-		do {
-			status = nvm_write_buffer(
-				data_written + SK_APP_HEADER_ADDR, buf, NVMCTRL_PAGE_SIZE);
-		} while(status == STATUS_BUSY);
-		#endif
-
 		data_written += sizeof(buf);
 	}
 
@@ -245,7 +282,7 @@ static void write_test_data(void)
 	RJTLogger_print("Done writing test data!");
 	RJTLogger_process();
 }
-
+#endif
 
 void RJTUSBBridgeDFU_init(void)
 {
@@ -258,12 +295,9 @@ void RJTUSBBridgeDFU_init(void)
 
 	nvm_set_config(&config);
 
-	//erase_application();
-	//write_test_data();
-
 	reset_dfu_context(&mDFU);
 }
 
 
 
-#pragma GCC pop_options
+//#pragma GCC pop_options

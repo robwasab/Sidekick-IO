@@ -745,7 +745,18 @@
       <SubType>compile</SubType>
       <Link>src\bootloader.h</Link>
     </Compile>
+    <Compile Include="..\..\Common\rjt_clock_logger.c">
+      <SubType>compile</SubType>
+      <Link>src\rjt_clock_logger.c</Link>
+    </Compile>
+    <Compile Include="..\..\Common\rjt_clock_logger.h">
+      <SubType>compile</SubType>
+      <Link>src\rjt_clock_logger.h</Link>
+    </Compile>
     <Compile Include="src\ASF\sam0\drivers\nvm\nvm.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\sniptype.h">
       <SubType>compile</SubType>
     </Compile>
     <None Include="src\ASF\sam0\drivers\nvm\quick_start_basic\qs_nvm_basic.h">
@@ -754,10 +765,10 @@
     <None Include="src\ASF\sam0\drivers\nvm\nvm.h">
       <SubType>compile</SubType>
     </None>
-    <Compile Include="src\rjt_clock_logger.c">
+    <Compile Include="src\crc32.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="src\rjt_clock_logger.h">
+    <Compile Include="src\crc32.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\rjt_usb_bridge_boot.c">

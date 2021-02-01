@@ -91,7 +91,7 @@ static bool run_application(void)
 		uint32_t * vector_table_addr = 
 			(uint32_t *) SK_APP_ADDR; 
 		
-		SCB->VTOR = vector_table_addr;
+		SCB->VTOR = (uint32_t) vector_table_addr;
 
 		RJTLogger_print("vector table addr: %x, %b", vector_table_addr, vector_table_addr);
 		RJTLogger_print("app stack addr: %x", vector_table_addr[0]);
@@ -117,6 +117,28 @@ static bool run_application(void)
 	}
 }
 
+#define RESET_SHARED_MEMORY(msg)	\
+do { \
+	RJTLogger_print("Zeroing shared memory: %s", msg); \
+	memset((void *)SK_SHARED_MEMORY_ADDR, 0, SK_SHARED_MEMORY_SIZE); \
+} while(0)
+
+
+static void init_shared_memory(void)
+{
+	// If reset was not user reset, reset the shared memory
+	if(false == PM->RCAUSE.bit.SYST)
+	{
+		RESET_SHARED_MEMORY("Not user reset");
+	}
+	else {
+		// preserve the shared memory
+		if(SK_SHARED_MEMORY_OBJ->fw_mode >= RJT_USB_BRIDGE_MODE_MAX) {
+			RESET_SHARED_MEMORY("Invalid fw_mode");
+		}
+	}
+}
+
 
 int main (void)
 {
@@ -125,13 +147,26 @@ int main (void)
 	RJTLogger_init();
 
 	RJTLogger_print("Bootloader Initialized");
+
+	init_shared_memory();
+
 	RJTLogger_process();
 
-	//run_application();
+	if(RJT_USB_BRIDGE_MODE_APP == SK_SHARED_MEMORY_OBJ->fw_mode) {
+		run_application();
+	}
+	else {
+		RJTLogger_print("Forced into DFU mode...");
+		// reset the firmware mode
+		SK_SHARED_MEMORY_OBJ->fw_mode = RJT_USB_BRIDGE_MODE_APP;
+	}
+
+	// uncomment to print debug info about the clock system
 	//RJTClockLogger_gclk();
 	//RJTClockLogger_powerManager();
 
 	RJTUSBBridge_init();
+
 	udc_start();
 
 	system_interrupt_enable_global();

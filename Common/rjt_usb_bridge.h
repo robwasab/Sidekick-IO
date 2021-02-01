@@ -42,6 +42,7 @@ bool RJTUSBBridge_processControlRequestRead(
 enum RJT_USB_BRIDGE_MODE {
 	RJT_USB_BRIDGE_MODE_APP = 0x00,
 	RJT_USB_BRIDGE_MODE_DFU = 0x01,
+	RJT_USB_BRIDGE_MODE_MAX,
 };
 
 
@@ -52,6 +53,8 @@ enum RJT_USB_ERROR {
 	RJT_USB_ERROR_MALFORMED_PACKET = 0x03,
 	RJT_USB_ERROR_RESOURCE_BUSY    = 0x04,
 	RJT_USB_ERROR_PARAMETER        = 0x05,
+	RJT_USB_ERROR_STATE            = 0x06,
+	RJT_USB_ERROR_OPERATION_FAILED = 0x07,
 };
 
 
@@ -88,6 +91,14 @@ enum USBCmd
 		Initiates a DFU update. This command erases the 
 		application flash memory area. It also resets the 
 		flash counter to the application flash base.
+
+		Parameters:
+		uint32_t image_size:	the expected image size
+		uint32_t expected_crc: the expected crc
+
+		- RJT_USB_ERROR_MALFORMED_PACKET if not enough data
+		- RJT_USB_ERROR_NO_MEMORY if given image size is greater than nvm space
+		- RJT_USB_ERROR_NONE success
 	 */
 
 	USB_CMD_DFU_WRITE_DATA     = 0x0C,
@@ -96,6 +107,13 @@ enum USBCmd
 		is buffered, and once it reaches the size of a page,
 		(64 bytes), it is written to flash. The flash counter
 		is also incremented automatically.
+
+		Parameters:
+		uint8_t[] firmware data (entire packet)
+
+		- RJT_USB_ERROR_STATE if USB_CMD_DFU_START has not been sent
+		- RJT_USB_ERROR_NO_MEMORY if write has exceeded expected image size
+		- RJT_USB_ERROR_NONE success
 	 */
 	
 	USB_CMD_DFU_READ_DATA      = 0x0D,
@@ -114,6 +132,20 @@ enum USBCmd
 	/**
 		Finalizes the DFU update. Any remaining data stored
 		in the cache is written to NVM.
+	 */
+
+	USB_CMD_DFU_RESET = 0x10,
+	/**
+	  Initiates a soft reset to run the newly programmed application.
+
+		Parameters:
+		uint8_t fw_mode: 
+			value RJT_USB_BRIDGE_MODE_DFU forces the system to restart into bootloader mode.
+			value RJT_USB_BRIDGE_MODE_APP puts the system into normal mode. The bootloader
+				will run the application if there is one in memory. Otherwise, it will stay in
+				bootloader mode.
+
+		- RJT_USB_ERROR_PARAMETER if an invalid mode was given
 	 */
 };
 

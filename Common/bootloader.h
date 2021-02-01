@@ -21,6 +21,21 @@
 
 #define SK_IMAGE_MAGIC			(0xcafefeed)
 
+extern uint32_t _sshared_memory;
+extern uint32_t _eshared_memory;
+
+#define SK_SHARED_MEMORY_SIZE		((uint32_t)(&_eshared_memory - &_sshared_memory))
+#define SK_SHARED_MEMORY_ADDR		((uint32_t)&_sshared_memory)
+
+
+struct SKSharedMemory
+{
+	uint8_t fw_mode;
+};
+
+#define SK_SHARED_MEMORY_OBJ	((struct SKSharedMemory *)(SK_SHARED_MEMORY_ADDR))
+
+
 union SKAppHeader
 {
 	struct

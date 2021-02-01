@@ -831,6 +831,12 @@
     <None Include="src\ASF\sam0\drivers\sercom\usart\usart_interrupt.h">
       <SubType>compile</SubType>
     </None>
+    <Compile Include="src\rjt_clock_logger.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\rjt_clock_logger.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="src\rjt_external_interrupt_controller.c">
       <SubType>compile</SubType>
     </Compile>
@@ -844,6 +850,9 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\rjt_usb_bridge_configuration.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="src\rjt_usb_bridge_dfu.c">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="src\rjt_usb_bridge_gpio.c">

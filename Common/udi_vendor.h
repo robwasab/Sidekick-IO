@@ -64,5 +64,17 @@ typedef struct {
   .ep_notify.wMaxPacketSize  = LE16(UDI_VENDOR_EP_SIZE)   \
 }
 
+extern uint32_t _ssof_callbacks;
+extern uint32_t _esof_callbacks;
+
+typedef void (*sof_callback_t)(void);
+
+#define SOF_CALLBACK_ARR	((sof_callback_t *)(&_ssof_callbacks))
+#define SOF_CALLBACK_LEN	((((uint32_t)(&_esof_callbacks)) - ((uint32_t)(&_ssof_callbacks)))/sizeof(sof_callback_t))
+
+#define SOF_REGISTER_CALLBACK(func_name)     \
+__attribute__ ((section (".sof_callbacks"))) \
+sof_callback_t __ ## func_name = &func_name
+
 
 #endif /* UDI_VENDOR_H_ */

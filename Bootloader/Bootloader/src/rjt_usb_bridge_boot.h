@@ -27,6 +27,8 @@ RJT_USB_CMD_DECL(RJTUSBBridgeDFU_resetReadPtr);
 
 RJT_USB_CMD_DECL(RJTUSBBridgeDFU_doneWriting);
 
+RJT_USB_CMD_DECL(RJTUSBBridgeDFU_reset);
+
 void RJTUSBBridgeDFU_init(void);
 
 

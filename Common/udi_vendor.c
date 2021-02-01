@@ -224,6 +224,7 @@ static void interrupt_transfer_callback(udd_ep_status_t status,
 static bool udi_vendor_enable(void)
 {
 	RJTLogger_print("vendor enable");
+	RJTLogger_print("sof callback len: %d", SOF_CALLBACK_LEN);
 
 	CRITICAL_SECTION_ENTER();
 
@@ -372,7 +373,11 @@ static uint8_t udi_vendor_getsetting(void)
 
 static void udi_vendor_sof_notify(void)
 {
+	for(size_t k = 0; k < SOF_CALLBACK_LEN; k++) {
+		SOF_CALLBACK_ARR[k]();
+	}
 }
+
 
 UDC_DESC_STORAGE udi_api_t udi_api_vendor = {
 	.enable = udi_vendor_enable,

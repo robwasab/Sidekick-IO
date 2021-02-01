@@ -143,6 +143,8 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 
 		CASE2FUNC(USB_CMD_GPIO_PARALLEL_WRITE, RJTUSBBridgeGPIO_parallelWrite);
 
+		CASE2FUNC(USB_CMD_DFU_RESET, RJTUSBBridgeDFU_reset);
+
 		default:
 			ret_code = RJT_USB_ERROR_UNKNOWN_CMD;
 			break;

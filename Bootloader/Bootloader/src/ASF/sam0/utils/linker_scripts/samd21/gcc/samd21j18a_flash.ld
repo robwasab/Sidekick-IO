@@ -57,6 +57,8 @@ MEMORY
 /* The stack size used by the application. NOTE: you need to adjust according to your application. */
 STACK_SIZE = DEFINED(STACK_SIZE) ? STACK_SIZE : DEFINED(__stack_size__) ? __stack_size__ : 0x2000;
 
+SHARED_MEMORY_SIZE = 32;
+
 /* Section Definitions */
 SECTIONS
 {
@@ -65,6 +67,11 @@ SECTIONS
         . = ALIGN(4);
         _sfixed = .;
         KEEP(*(.vectors .vectors.*))
+
+				_ssof_callbacks = .;
+				KEEP (*(.sof_callbacks))
+				_esof_callbacks = .;
+
         *(.text .text.* .gnu.linkonce.t.*)
         *(.glue_7t) *(.glue_7)
         *(.rodata .rodata* .gnu.linkonce.r.*)
@@ -119,6 +126,14 @@ SECTIONS
 
     . = ALIGN(4);
     _etext = .;
+
+		.shared_memory (NOLOAD) :
+		{
+			. = ALIGN(4);
+			_sshared_memory = .;
+			. +=  SHARED_MEMORY_SIZE;
+			_eshared_memory = .;
+		} > ram
 
     .relocate : AT (_etext)
     {

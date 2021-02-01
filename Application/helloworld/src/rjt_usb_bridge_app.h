@@ -63,6 +63,7 @@ RJT_USB_CMD_DECL(RJTUSBBridgeGPIO_clearInterruptStatus);
 
 RJT_USB_CMD_DECL(RJTUSBBridgeGPIO_parallelWrite);
 
+RJT_USB_CMD_DECL(RJTUSBBridgeDFU_reset);
 
 void RJTUSBBridgeGPIO_init(void);
 
