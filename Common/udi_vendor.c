@@ -223,8 +223,8 @@ static void interrupt_transfer_callback(udd_ep_status_t status,
 
 static bool udi_vendor_enable(void)
 {
-	RJTLogger_print("vendor enable");
-	RJTLogger_print("sof callback len: %d", SOF_CALLBACK_LEN);
+	//RJTLogger_print("vendor enable");
+	//RJTLogger_print("sof callback len: %d", SOF_CALLBACK_LEN);
 
 	CRITICAL_SECTION_ENTER();
 
@@ -293,7 +293,7 @@ static void udi_vendor_disable(void)
 
 static bool udi_vendor_setup(void)
 {
-	RJTLogger_print("vendor setup");
+	//RJTLogger_print("vendor setup");
 
 	bool ret_code = false;
 
