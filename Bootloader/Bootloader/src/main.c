@@ -1,5 +1,5 @@
 #include <asf.h>
-
+#include <port.h>
 
 #include "rjt_logger.h"
 #include "rjt_queue.h"
@@ -140,9 +140,60 @@ static void init_shared_memory(void)
 }
 
 
+static void init_dfu_sense_pin(void)
+{
+	struct port_config config;
+	port_get_config_defaults(&config);
+
+	config.direction = PORT_PIN_DIR_INPUT;
+	config.input_pull = PORT_PIN_PULL_UP;
+
+	port_pin_set_config(PIN_PB15, &config);
+}
+
+
+static void init_led(void)
+{
+	struct port_config config;
+	port_get_config_defaults(&config);
+
+	config.direction = PORT_PIN_DIR_OUTPUT;
+	config.input_pull = PORT_PIN_PULL_NONE;
+
+	port_pin_set_config(PIN_PB30, &config);
+}
+
+
+static bool dfu_pin_level(void)
+{
+	return port_pin_get_input_level(PIN_PB15);
+}
+
+
+static void sof_callback(void)
+{
+	static uint32_t count = 0;
+	static bool level = false;
+
+	if(count >= 1000) {
+		count = 0;
+		//RJTLogger_print("dfu sense pin status: %?", dfu_pin_level());
+		port_pin_set_output_level(PIN_PB30, level);
+		level ^= true;
+	}
+	else {
+		count++;
+	}
+}
+
+SOF_REGISTER_CALLBACK(sof_callback);
+
+
 int main (void)
 {
 	system_init();
+
+	init_dfu_sense_pin();
 
 	RJTLogger_init();
 
@@ -152,13 +203,23 @@ int main (void)
 
 	RJTLogger_process();
 
-	if(RJT_USB_BRIDGE_MODE_APP == SK_SHARED_MEMORY_OBJ->fw_mode) {
-		run_application();
+	if(true == dfu_pin_level()) 
+	{
+		// dfu pin is not asserted, continue checking if 
+		// app is present
+
+		if(RJT_USB_BRIDGE_MODE_APP == SK_SHARED_MEMORY_OBJ->fw_mode) 
+		{
+			run_application();
+		}
+		else {
+			RJTLogger_print("Forced into DFU mode...");
+			// reset the firmware mode
+			SK_SHARED_MEMORY_OBJ->fw_mode = RJT_USB_BRIDGE_MODE_APP;
+		}
 	}
 	else {
-		RJTLogger_print("Forced into DFU mode...");
-		// reset the firmware mode
-		SK_SHARED_MEMORY_OBJ->fw_mode = RJT_USB_BRIDGE_MODE_APP;
+			RJTLogger_print("DFU pin held low...");
 	}
 
 	// uncomment to print debug info about the clock system
@@ -175,14 +236,6 @@ int main (void)
 
 	/* This skeleton code simply sets the LED to the state of the button. */
 	while (1) {
-		/* Is button pressed? */
-		if (port_pin_get_input_level(BUTTON_0_PIN) == BUTTON_0_ACTIVE) {
-			/* Yes, so turn LED on. */
-			port_pin_set_output_level(LED_0_PIN, LED_0_ACTIVE);
-		} else {
-			/* No, so turn LED off. */
-			port_pin_set_output_level(LED_0_PIN, !LED_0_ACTIVE);
-		}
 
 		RJTLogger_process();
 	}
