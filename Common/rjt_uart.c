@@ -14,6 +14,7 @@
 #include "rjt_queue.h"
 #include "utils.h"
 #include "rjt_uart.h"
+#include "udi_vendor.h"
 
 /**
  * PB00 - SERCOM5/PAD[2]
@@ -31,25 +32,42 @@
  */
 
 static struct usart_module mUart;
-static uint16_t mRxByte;
 
 static uint8_t mTxInProgressBuffer[32];
 static bool	mTxInProgress;
 
-static uint8_t  mTxQueueBuffer[128];
+static uint8_t  mTxQueueBuffer[256];
 static RJTQueue mTxQueue;
 
-static uint8_t  mRxQueueBuffer[128];
-static RJTQueue mRxQueue;
+// The way this is coded, mRxRingBuf size has to be a power of 2
+#define RX_RING_BUF_LOG2_OF_SIZE	10
+#define RX_RING_BUF_MASK					((1 << RX_RING_BUF_LOG2_OF_SIZE) - 1)
+static uint8_t  mRxRingBuf[(1 << RX_RING_BUF_LOG2_OF_SIZE)];
+static size_t   mRxRingBufIndex = 0;
+
 
 static volatile bool mCDCEnabled = false;
 static uint32_t mCurrentTicks;
 static uint32_t mLastTicks;
 
+
+// The DMA channel object
+static struct dma_resource mDMA;
+
+// The DMA memory descriptor the UART rx buffer
+static COMPILER_ALIGNED(16) 
+DmacDescriptor mDMADescriptor SECTION_DMAC_DESCRIPTOR;
+
+// The Event channel for re-triggering the DMAC
+// it's event output is re-routed back to it's input
+static struct events_resource mDMAEventChannel;
+
+extern DmacDescriptor _write_back_section[CONF_MAX_USED_CHANNEL_NUM];
+
+
 /************************************************************************
  * USB CDC Callbacks
  ************************************************************************/
-
 
 bool user_callback_cdc_enable(void)
 {
@@ -63,27 +81,28 @@ bool user_callback_cdc_enable(void)
 }
 
 
- void user_callback_cdc_disable(uint8_t port)
- {
-	 (void) port;
-	 mCDCEnabled = false;
- }
+void user_callback_cdc_disable(uint8_t port)
+{
+	(void) port;
+	mCDCEnabled = false;
+}
 
 
- void user_callback_cdc_set_line_coding(uint8_t port, usb_cdc_line_coding_t * cfg)
- {
-	 RJTLogger_print("setting line encoding...");
-	 RJTLogger_print("baud: %d", cfg->dwDTERate);
- }
+void user_callback_cdc_set_line_coding(uint8_t port, usb_cdc_line_coding_t * cfg)
+{
+	RJTLogger_print("setting line encoding...");
+	RJTLogger_print("baud: %d", cfg->dwDTERate);
+}
 
 
- /**
-  * Called after USB host sent us data
-	*/
- void user_callback_cdc_rx_notify(uint8_t port)
- {
-	 //RJTLogger_print("rx notify!");
- }
+/**
+ * Called after USB host sent us data
+ */
+void user_callback_cdc_rx_notify(uint8_t port)
+{
+	//RJTLogger_print("rx notify!");
+}
+
 
 /************************************************************************
  * UART Callbacks
@@ -98,16 +117,24 @@ static void dequeue_and_transmit(void)
 		// Start transmission
 			
 		// Dequeue data
-		size_t num2dequeue = MIN(RJTQueue_getNumEnqueued(&mTxQueue), sizeof(mTxInProgressBuffer));
-		RJTQueue_dequeue(&mTxQueue, mTxInProgressBuffer, num2dequeue);
+		size_t num2dequeue = 
+			MIN(RJTQueue_getNumEnqueued(&mTxQueue), sizeof(mTxInProgressBuffer));
+		
+		RJTQueue_dequeue(
+			&mTxQueue, 
+			mTxInProgressBuffer, 
+			num2dequeue);
 
 		// Start transmit job
 		enum status_code res =
-		usart_write_buffer_job(&mUart, mTxInProgressBuffer, num2dequeue);
+		usart_write_buffer_job(
+			&mUart, 
+			mTxInProgressBuffer, 
+			num2dequeue);
 			
 		ASSERT(STATUS_OK == res);
 
-		//RJTLogger_print("UART: sending %d bytes", num2dequeue);
+		RJTLogger_print("UART: sending %d bytes", num2dequeue);
 
 		mTxInProgress = true;
 	}
@@ -124,34 +151,6 @@ static void callback_transmitted(struct usart_module * module)
 	//RJTLogger_print("UART: transmitted");
 
 	dequeue_and_transmit();
-}
-
-static void callback_received(struct usart_module * module)
-{
-	//RJTLogger_print("UART: received");
-
-	if(0 < RJTQueue_getSpaceAvailable(&mRxQueue))
-	{
-		RJTQueue_enqueue(&mRxQueue, (uint8_t *) &mRxByte, sizeof(uint8_t));
-	}
-	else {
-		//RJTLogger_print("UART: rx dropped byte");
-	}
-
-	// Start reception again
-	enum status_code res;
-	res = usart_read_job(&mUart, &mRxByte);
-	ASSERT(STATUS_OK == res);
-}
-
-static void callback_error(struct usart_module * module)
-{
-	//RJTLogger_print("UART: error");
-}
-
-static void callback_receive_started(struct usart_module * module)
-{
-	RJTLogger_print("UART: receive started");
 }
 
 
@@ -188,6 +187,28 @@ static void enqueue_into_write_queue(const uint8_t * indata, size_t len)
 	}
 
 	system_interrupt_leave_critical_section();
+
+	//RJTLogger_print("uart tx %d bytes", len);
+}
+
+
+/**
+ * Returns the index where the DMAC will write to next
+ */
+static size_t get_rx_ringbuf_pos(void)
+{
+	/*
+		RJTLogger_print(
+			"[%d] num trans: %d", 
+			DMAC->ACTIVE.bit.ID, 
+			DMAC->ACTIVE.bit.BTCNT);
+	*/
+	// BTCNT represents number of bytes to send until the ring buffer is 
+	// depleted.
+	// BTCNT starts off at zero, but after the DMAC transfers 1 byte, BTCNT
+	// becomes buffer size - 1. After transferring 2 bytes, it 
+	// reads buffer size - 2
+	return (sizeof(mRxRingBuf) - DMAC->ACTIVE.bit.BTCNT) % sizeof(mRxRingBuf);
 }
 
 
@@ -196,7 +217,10 @@ static void enqueue_into_write_queue(const uint8_t * indata, size_t len)
  */
 static size_t get_num_readable(void)
 {
-	return RJTQueue_getNumEnqueued(&mRxQueue);
+	size_t ringbuf_pos = get_rx_ringbuf_pos();
+	size_t num_avail = (ringbuf_pos - mRxRingBufIndex) & RX_RING_BUF_MASK;
+
+	return num_avail;
 }
 
 
@@ -205,8 +229,14 @@ static size_t get_num_readable(void)
  */
 static void dequeue_from_read_queue(uint8_t * outdata, size_t num)
 {
-	RJTQueue_dequeue(&mRxQueue, outdata, num);
+	ASSERT(num <= get_num_readable());
+
+	for(size_t k = 0; k < num; k++) {
+		outdata[k] = mRxRingBuf[mRxRingBufIndex];
+		mRxRingBufIndex = (mRxRingBufIndex + 1) & RX_RING_BUF_MASK;
+	}
 }
+
 
 struct CachedBuffer {
 	uint8_t  buf[64];
@@ -216,6 +246,9 @@ struct CachedBuffer {
 };
 
 
+/**
+ * Send data to host.
+ */
 static void process_cdc_tx(void)
 {
 	static struct CachedBuffer write_buf = {0};
@@ -235,15 +268,16 @@ static void process_cdc_tx(void)
 
 			num2read = MIN(sizeof(write_buf.buf), num_readable);
 
+			// read from the uart rx buffer
 			dequeue_from_read_queue(write_buf.buf, num2read);
-					
+			
 			// reset buffer to beginning
 			write_buf.buf_size = num2read;
 			write_buf.buf_pos = 0;
 			write_buf.dirty = true;
 		}
 	}
-			
+	
 	if(true == write_buf.dirty)
 	{
 		iram_size_t num_written = 0;
@@ -276,6 +310,9 @@ static void process_cdc_tx(void)
 }
 
 
+/**
+ * Retrieve data written to us from the host.
+ */
 static void process_cdc_rx(void)
 {
 	static struct CachedBuffer read_buf = {0};
@@ -342,10 +379,6 @@ static void process_cdc_rx(void)
  * Public
  ************************************************************************/
 
-void RJTUart_sofCallback(void)
-{
-	++mCurrentTicks;
-}
 
 
 /**
@@ -366,22 +399,141 @@ void RJTUart_processCDC(void)
 
 	//system_interrupt_leave_critical_section();
 
+	#if 0
 	if(mCurrentTicks > mLastTicks + 100)
 	{
 		mLastTicks = mCurrentTicks;
 
 		RJTUart_testTransmit();
 	}
+	#endif
 }
 
 #pragma GCC pop_options
+
+
+#if 0
+// The Event channel callback object for attaching a callback
+// handler to a particular event channel
+static struct events_hook     mDMAEventHook;
+
+
+static void event_callback(struct events_resource * resource)
+{
+	if(events_is_interrupt_set(resource, EVENTS_INTERRUPT_DETECT))
+	{
+		events_ack_interrupt(resource, EVENTS_INTERRUPT_DETECT);
+		RJTLogger_print("dma beat callback");
+	}
+}
+#endif
+
+
+static void dma_sof_callback(void)
+{
+	static uint32_t count = 0;
+
+	count += 1;
+
+	if(count >= 1000) {
+		count = 0;
+
+		RJTLogger_print("dma ptr [%d / %d]", mRxRingBufIndex, get_rx_ringbuf_pos());
+	}
+}
+
+SOF_REGISTER_CALLBACK(dma_sof_callback);
+
+/**
+ * Create an event channel to route:
+ * DMA event beat transfer -> DMA trigger
+ * This way, the DMA re-arms itself everytime it transfers a byte
+ */
+static void init_beat_event(void)
+{
+	struct events_config config;
+
+	events_get_config_defaults(&config);
+
+	// the event generator comes from DMAC channel 0
+	config.generator    = EVSYS_ID_GEN_DMAC_CH_0;
+	config.edge_detect  = EVENTS_EDGE_DETECT_RISING;
+	config.path         = EVENTS_PATH_RESYNCHRONIZED;
+	config.clock_source = GCLK_GENERATOR_0;
+	
+	events_allocate(&mDMAEventChannel, &config);
+
+	events_attach_user(&mDMAEventChannel, EVSYS_ID_USER_DMAC_CH_0);
+
+	#if 0
+	events_create_hook(&mDMAEventHook, event_callback);
+
+	events_add_hook(&mDMAEventChannel, &mDMAEventHook);
+
+	events_enable_interrupt_source(&mDMAEventChannel, EVENTS_INTERRUPT_DETECT);
+
+	#endif
+
+	while(events_is_busy(&mDMAEventChannel)) {
+		__NOP();
+	}
+}
+
+
+static void init_dmac(void)
+{
+	// configure dma resource
+	struct dma_resource_config config;
+	dma_get_config_defaults(&config);
+
+	config.event_config.input_action = DMA_EVENT_INPUT_CTRIG;
+	config.peripheral_trigger = SERCOM4_DMAC_ID_RX;
+
+	config.trigger_action = DMA_TRIGGER_ACTION_BEAT;
+	config.event_config.event_output_enable = true;
+	
+	dma_allocate(&mDMA, &config);
+
+	
+	// configure dma descriptor
+	struct dma_descriptor_config desc_config;
+	dma_descriptor_get_config_defaults(&desc_config);
+
+	desc_config.event_output_selection = DMA_EVENT_OUTPUT_BEAT;
+	
+	// After a block has been transferred, do nothing...
+	// here is where we configure whether or not it should interrupt
+	desc_config.block_action = DMA_BLOCK_ACTION_NOACT;
+	
+	// do not increment source address
+	desc_config.src_increment_enable = false;
+	desc_config.source_address = (uint32_t) &SERCOM4->USART.DATA.reg;
+
+	
+	desc_config.block_transfer_count = sizeof(mRxRingBuf);
+
+	// Still have no idea why we add by the size of the destination buffer
+	// just following the example
+	desc_config.destination_address = ((uint32_t)mRxRingBuf) + sizeof(mRxRingBuf);
+	
+	// increment destination address automatically
+	desc_config.dst_increment_enable = true;
+
+	// point to ourselves so that the DMA keeps repeating this descriptor transfer
+	desc_config.next_descriptor_address = (uint32_t) &mDMADescriptor;
+
+	dma_descriptor_create(&mDMADescriptor, &desc_config);
+
+	dma_add_descriptor(&mDMA, &mDMADescriptor);
+
+	dma_start_transfer_job(&mDMA);
+}
 
 
 void RJTUart_init(void)
 {
 	// Initialize Tx and Rx Queues
 	RJTQueue_init(&mTxQueue, mTxQueueBuffer, sizeof(mTxQueueBuffer));
-	RJTQueue_init(&mRxQueue, mRxQueueBuffer, sizeof(mRxQueueBuffer));
 
 	// Initialize UART, use SERCOM4
 	struct usart_config config;
@@ -389,41 +541,35 @@ void RJTUart_init(void)
 
 	config.baudrate = 115200;
 	config.mux_setting = USART_RX_1_TX_0_XCK_1;
-	config.pinmux_pad0 = PINMUX_PB08D_SERCOM4_PAD0;
-	config.pinmux_pad1 = PINMUX_PB09D_SERCOM4_PAD1;
+	//config.pinmux_pad0 = PINMUX_PB08D_SERCOM4_PAD0;
+	config.pinmux_pad0 = PINMUX_PA12D_SERCOM4_PAD0;
+	
+	//config.pinmux_pad1 = PINMUX_PB09D_SERCOM4_PAD1;
+	config.pinmux_pad1 = PINMUX_PA13D_SERCOM4_PAD1;
+
 	config.pinmux_pad2 = PINMUX_UNUSED;
 	config.pinmux_pad3 = PINMUX_UNUSED;
+	
+	NVIC_SetPriority(SERCOM4_IRQn, APP_LOW_PRIORITY);
 
 	while(usart_init(&mUart, SERCOM4, &config) != STATUS_OK);
 
 	// Register Callbacks
-	usart_register_callback(&mUart, 
-		callback_receive_started, USART_CALLBACK_START_RECEIVED);
-
-	usart_register_callback(&mUart,
-		callback_received, USART_CALLBACK_BUFFER_RECEIVED);
 
 	usart_register_callback(&mUart,
 		callback_transmitted, USART_CALLBACK_BUFFER_TRANSMITTED);
-
-	usart_register_callback(&mUart,
-		callback_error, USART_CALLBACK_ERROR);
-
-	usart_enable_callback(&mUart, USART_CALLBACK_START_RECEIVED);
-	
-	usart_enable_callback(&mUart, USART_CALLBACK_BUFFER_RECEIVED);
 	
 	usart_enable_callback(&mUart, USART_CALLBACK_BUFFER_TRANSMITTED);
 
 	usart_enable_callback(&mUart, USART_CALLBACK_ERROR);
 
-
 	usart_enable(&mUart);
 
-	// Read a byte
-	enum status_code res;
-	res = usart_read_job(&mUart, &mRxByte);
-	ASSERT(STATUS_OK == res);
+	init_dmac();
+
+	init_beat_event();
+
+	events_trigger(&mDMAEventChannel);
 }
 
 

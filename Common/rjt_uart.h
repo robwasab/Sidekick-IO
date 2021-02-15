@@ -9,8 +9,5 @@ void RJTUart_init(void);
 
 void RJTUart_testTransmit(void);
 
-void RJTUart_sofCallback(void);
-
 void RJTUart_processCDC(void);
-
 
