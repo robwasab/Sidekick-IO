@@ -11,6 +11,7 @@
 #include "bootloader.h"
 #include "rjt_clock_logger.h"
 
+extern uint32_t _sstack;
 extern uint32_t _svector_table;
 extern uint32_t _app_header_addr;
 
@@ -36,7 +37,6 @@ void SysTick_Handler(void)
 
 void user_callback_sof_action(void)
 {
-	RJTUart_sofCallback();
 }
 
 
@@ -58,7 +58,6 @@ __PACKED_STRUCT SavedContext {
 };
 
 
-
 #pragma GCC push_options
 #pragma GCC optimize("O0")
 
@@ -67,6 +66,17 @@ static void my_fault_handler(uint32_t stack_pointer)
 	struct SavedContext * saved_context =
 	(struct SavedContext *) stack_pointer;
 
+	// From ARM Cortex M0 Generic User Guide
+	// 0 = Thread mode
+	// 1 = Reserved
+	// 2 = NMI
+	// 3 = HardFault
+	// 4 - 10 = Reserved
+	// 11 = SVCall
+	// 14 = PendSV
+	// 15 = SysTick, if implemented
+	// 16 = IRQ0
+	// ...
 	uint32_t pending_nvic = get_nvic_pending();
 
 	__ASM("BKPT");
@@ -109,12 +119,13 @@ __attribute__((naked)) void HardFault_Handler(void)
 #pragma GCC optimize("O0")
 
 int main (void)
-{
-	extern uint32_t _sstack;
-
+{	
 	// stack watermark
 	*(&_sstack) = 0xDEADBEEF;
 	
+	system_interrupt_enter_critical_section();
+	//__disable_irq();
+
 	system_init();
 
 	RJTLogger_init();
@@ -132,8 +143,6 @@ int main (void)
 	//RJTClockLogger_gclk();
 	//RJTClockLogger_powerManager();
 
-	system_interrupt_enable_global();
-
 	// Run Tests here
 	//RJTQueue_test();
 
@@ -147,20 +156,15 @@ int main (void)
 
 	//bad_instruction();
 	
-	RJTLogger_print("Hello world");
+	//RJTLogger_print("Hello world");
+	
+	system_interrupt_leave_critical_section();
+	//__enable_irq();
+
 	
 	/* This skeleton code simply sets the LED to the state of the button. */
 	while (1) {
 		/* Is button pressed? */
-		#if 0
-		if (port_pin_get_input_level(BUTTON_0_PIN) == BUTTON_0_ACTIVE) {
-			/* Yes, so turn LED on. */
-			port_pin_set_output_level(LED_0_PIN, LED_0_ACTIVE);
-		} else {
-			/* No, so turn LED off. */
-			port_pin_set_output_level(LED_0_PIN, !LED_0_ACTIVE);
-		}
-		#endif
 		
 		RJTUart_processCDC();
 
