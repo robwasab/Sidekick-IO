@@ -56,6 +56,16 @@
 #include <compiler.h>
 #include <status_codes.h>
 
+// From module: DMAC - Direct Memory Access Controller
+#include <dma.h>
+#include <dma_crc.h>
+
+// From module: EVSYS - Event System Common
+#include <events.h>
+
+// From module: EVSYS - Event System with interupt hooks support
+#include <events_hooks.h>
+
 // From module: EXTINT - External Interrupt (Callback APIs)
 #include <extint.h>
 #include <extint_callback.h>
