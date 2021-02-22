@@ -58,19 +58,26 @@ enum RJT_USB_ERROR {
 };
 
 
-enum RJT_USB_CONFIG {
-	RJT_USB_CONFIG_GPIO       = 0x00,
-	RJT_USB_CONFIG_I2C_MASTER = 0x01,
-	RJT_USB_CONFIG_I2C_SLAVE  = 0x02,
-	RJT_USB_CONFIG_SPI_MASTER = 0x03,
-	RJT_USB_CONFIG_SPI_SLAVE  = 0x04,
-	RJT_USB_CONFIG_UART       = 0x05,
-	RJT_USB_CONFIG_MAX,
+enum SK_USB_CONFIG {
+	SK_USB_CONFIG_GPIO       = 0x00,
+	SK_USB_CONFIG_I2C_MASTER = 0x01,
+	SK_USB_CONFIG_I2C_SLAVE  = 0x02,
+	SK_USB_CONFIG_SPI_MASTER = 0x03,
+	SK_USB_CONFIG_SPI_SLAVE  = 0x04,
+	SK_USB_CONFIG_UART       = 0x05,
+	SK_USB_CONFIG_MAX,
 };
 
 
 void RJTUSBBridge_setInterruptStatus(uint32_t interrupt_status);
 
+
+
+enum SK_I2CM_CLK_SEL {
+	SK_I2CM_CLK_SEL_100KHZ = 0,
+	SK_I2CM_CLK_SEL_400KHZ = 1,
+	SK_I2CM_CLK_SEL_MAX,
+};
 
 
 enum USBCmd
@@ -93,9 +100,12 @@ enum USBCmd
 		flash counter to the application flash base.
 
 		Parameters:
+		-----------
 		uint32_t image_size:	the expected image size
 		uint32_t expected_crc: the expected crc
 
+		Error Codes:
+		------------
 		- RJT_USB_ERROR_MALFORMED_PACKET if not enough data
 		- RJT_USB_ERROR_NO_MEMORY if given image size is greater than nvm space
 		- RJT_USB_ERROR_NONE success
@@ -109,8 +119,11 @@ enum USBCmd
 		is also incremented automatically.
 
 		Parameters:
+		-----------
 		uint8_t[] firmware data (entire packet)
 
+		Error Codes:
+		------------
 		- RJT_USB_ERROR_STATE if USB_CMD_DFU_START has not been sent
 		- RJT_USB_ERROR_NO_MEMORY if write has exceeded expected image size
 		- RJT_USB_ERROR_NONE success
@@ -120,32 +133,58 @@ enum USBCmd
 	/**
 		Reads data from the flash. After reading, the read
 		flash counter is incremented automatically.
+		
+		No parameters.
 	 */
 
 	USB_CMD_DFU_RESET_READ_PTR	= 0x0E,
 	/**
 		Resets the read pointer to the beginning of the 
 		application base pointer.
+		
+		No parameters.
 	 */
 
 	USB_CMD_DFU_DONE_WRITING = 0x0F,
 	/**
 		Finalizes the DFU update. Any remaining data stored
 		in the cache is written to NVM.
+		
+		No parameters.
 	 */
 
 	USB_CMD_DFU_RESET = 0x10,
 	/**
-	  Initiates a soft reset to run the newly programmed application.
+		Initiates a soft reset to run the newly programmed application.
 
 		Parameters:
+		-----------
 		uint8_t fw_mode: 
 			value RJT_USB_BRIDGE_MODE_DFU forces the system to restart into bootloader mode.
 			value RJT_USB_BRIDGE_MODE_APP puts the system into normal mode. The bootloader
 				will run the application if there is one in memory. Otherwise, it will stay in
 				bootloader mode.
 
+		Error Codes:
+		------------
+		- RJT_USB_ERROR_NONE if success
 		- RJT_USB_ERROR_PARAMETER if an invalid mode was given
+	 */
+	
+	USB_CMD_I2CM_TRANSACTION = 0x11,
+	/**
+		Write data over i2c. Must be configured first.
+		
+		Parameters:
+		-----------
+		uint8_t slave_addr
+		uint8_t fmt_str_len format string length
+		uint8_t[] fmt_str
+		uint8_t[] data
+		
+		Error Codes:
+		- RJT_USB_ERROR_NONE if success
+		- RJT_USB_ERROR_OPERATION_FAILED if error occurred. ASF error returned in the response.
 	 */
 };
 

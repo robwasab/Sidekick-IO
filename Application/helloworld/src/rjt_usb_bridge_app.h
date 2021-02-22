@@ -36,7 +36,9 @@ void RJTUSBBridge_clearInterruptBit(enum RJT_USB_INTERRUPT_BIT bit, bool notify)
 
 RJT_USB_CMD_DECL(RJTUSBBridgeConfig_setConfig);
 
-struct spi_module * RJTUSBBridgeConfig_getSpiModule(void);
+struct spi_module * SKUSBBridgeConfig_getSpiModule(void);
+
+struct i2c_master_module * SKUSBBridgeConfig_getI2CModule(void);
 
 void RJTUSBBridgeConfig_gpio2index(uint8_t gpio, bool * success, uint8_t * index);
 
@@ -73,16 +75,19 @@ RJT_USB_CMD_DECL(RJTUSBBridgeSPIM_transferData);
 void RJTUSBBridgeSPIM_callback(struct spi_module * const module);
 
 
-#define RJT_USB_BRIDGE_BEGIN_CMD					\
+RJT_USB_CMD_DECL(SKUSBBridgeI2CM_transaction);
+
+
+#define RJT_USB_BRIDGE_BEGIN_CMD	\
 __PACKED_STRUCT Annonymous {
 
-#define RJT_USB_BRIDGE_END_CMD						\
-} cmd = {0};															\
+#define RJT_USB_BRIDGE_END_CMD							\
+} cmd = {0};											\
 if(cmd_len < sizeof(cmd)) {								\
-	RJTLogger_print("not enough data for packet");\
-	*rsp_len = 0;														\
-	return RJT_USB_ERROR_MALFORMED_PACKET;	\
-}																					\
+	RJTLogger_print("not enough data for packet");		\
+	*rsp_len = 0;										\
+	return RJT_USB_ERROR_MALFORMED_PACKET;				\
+}														\
 memcpy(&cmd, cmd_data, sizeof(cmd));
 
 

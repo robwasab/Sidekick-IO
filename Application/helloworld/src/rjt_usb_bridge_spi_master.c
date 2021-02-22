@@ -60,12 +60,12 @@ enum RJT_USB_ERROR RJTUSBBridgeSPIM_transferData(const uint8_t * cmd_data, size_
 
 	// Get the spi handle from the configuration module
 	struct spi_module * spi_handle = 
-		RJTUSBBridgeConfig_getSpiModule();
+		SKUSBBridgeConfig_getSpiModule();
 
 	if(NULL == spi_handle) {
 		RJTLogger_print("SPIM: spi not configured");
 		*rsp_len = 0;
-		return RJT_USB_ERROR_RESOURCE_BUSY;
+		return RJT_USB_ERROR_STATE;
 	}
 
 	// Get the pointer to the tx data

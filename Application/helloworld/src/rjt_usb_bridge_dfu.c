@@ -53,6 +53,18 @@ static void my_sof_callback(void)
 		}
 		mResetCountDown--;
 	}
+
+	/*
+	static uint32_t cnt = 0;
+
+	if(cnt == 1000) {
+		//RJTLogger_print("sof callback...");
+		cnt = 0;
+	}
+	else {
+		cnt++;
+	}
+	*/
 }
 
 

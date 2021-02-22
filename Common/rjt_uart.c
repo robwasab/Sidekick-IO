@@ -66,45 +66,6 @@ extern DmacDescriptor _write_back_section[CONF_MAX_USED_CHANNEL_NUM];
 
 
 /************************************************************************
- * USB CDC Callbacks
- ************************************************************************/
-
-bool user_callback_cdc_enable(void)
-{
-	RJTLogger_print("cdc enabled");
-	 
-	mCDCEnabled = true;
-
-	mCurrentTicks = 0;
-	mLastTicks = 0;
-	return true;
-}
-
-
-void user_callback_cdc_disable(uint8_t port)
-{
-	(void) port;
-	mCDCEnabled = false;
-}
-
-
-void user_callback_cdc_set_line_coding(uint8_t port, usb_cdc_line_coding_t * cfg)
-{
-	RJTLogger_print("setting line encoding...");
-	RJTLogger_print("baud: %d", cfg->dwDTERate);
-}
-
-
-/**
- * Called after USB host sent us data
- */
-void user_callback_cdc_rx_notify(uint8_t port)
-{
-	//RJTLogger_print("rx notify!");
-}
-
-
-/************************************************************************
  * UART Callbacks
  ************************************************************************/
 
@@ -134,7 +95,7 @@ static void dequeue_and_transmit(void)
 			
 		ASSERT(STATUS_OK == res);
 
-		RJTLogger_print("UART: sending %d bytes", num2dequeue);
+		//RJTLogger_print("UART: sending %d bytes", num2dequeue);
 
 		mTxInProgress = true;
 	}
@@ -153,6 +114,83 @@ static void callback_transmitted(struct usart_module * module)
 	dequeue_and_transmit();
 }
 
+
+/************************************************************************
+ * USB CDC Callbacks
+ ************************************************************************/
+
+
+static void init_and_enable_uart(uint32_t baudrate)
+{
+	// Initialize UART, use SERCOM4
+	struct usart_config config;
+	usart_get_config_defaults(&config);
+
+	config.baudrate = baudrate;
+	config.mux_setting = USART_RX_1_TX_0_XCK_1;
+	//config.pinmux_pad0 = PINMUX_PB08D_SERCOM4_PAD0;
+	config.pinmux_pad0 = PINMUX_PA12D_SERCOM4_PAD0;
+	
+	//config.pinmux_pad1 = PINMUX_PB09D_SERCOM4_PAD1;
+	config.pinmux_pad1 = PINMUX_PA13D_SERCOM4_PAD1;
+
+	config.pinmux_pad2 = PINMUX_UNUSED;
+	config.pinmux_pad3 = PINMUX_UNUSED;
+	
+	NVIC_SetPriority(SERCOM4_IRQn, APP_LOW_PRIORITY);
+
+	while(usart_init(&mUart, SERCOM4, &config) != STATUS_OK);
+
+	// Register Callbacks
+
+	usart_register_callback(&mUart,
+	callback_transmitted, USART_CALLBACK_BUFFER_TRANSMITTED);
+	
+	usart_enable_callback(&mUart, USART_CALLBACK_BUFFER_TRANSMITTED);
+
+	usart_enable_callback(&mUart, USART_CALLBACK_ERROR);
+
+	usart_enable(&mUart);
+}
+
+
+bool user_callback_cdc_enable(void)
+{
+	RJTLogger_print("cdc enabled");
+	 
+	mCDCEnabled = true;
+
+	mCurrentTicks = 0;
+	mLastTicks = 0;
+	return true;
+}
+
+
+void user_callback_cdc_disable(uint8_t port)
+{
+	(void) port;
+	mCDCEnabled = false;
+}
+
+
+void user_callback_cdc_set_line_coding(uint8_t port, usb_cdc_line_coding_t * cfg)
+{
+	RJTLogger_print("setting line encoding...");
+	RJTLogger_print("baud: %d", cfg->dwDTERate);
+
+	usart_disable(&mUart);
+
+	init_and_enable_uart(cfg->dwDTERate);
+}
+
+
+/**
+ * Called after USB host sent us data
+ */
+void user_callback_cdc_rx_notify(uint8_t port)
+{
+	//RJTLogger_print("rx notify!");
+}
 
 /************************************************************************
  * Private
@@ -429,6 +467,7 @@ static void event_callback(struct events_resource * resource)
 #endif
 
 
+#if 0
 static void dma_sof_callback(void)
 {
 	static uint32_t count = 0;
@@ -443,6 +482,8 @@ static void dma_sof_callback(void)
 }
 
 SOF_REGISTER_CALLBACK(dma_sof_callback);
+
+#endif
 
 /**
  * Create an event channel to route:
@@ -530,40 +571,14 @@ static void init_dmac(void)
 }
 
 
+
+
 void RJTUart_init(void)
 {
 	// Initialize Tx and Rx Queues
 	RJTQueue_init(&mTxQueue, mTxQueueBuffer, sizeof(mTxQueueBuffer));
 
-	// Initialize UART, use SERCOM4
-	struct usart_config config;
-	usart_get_config_defaults(&config);
-
-	config.baudrate = 115200;
-	config.mux_setting = USART_RX_1_TX_0_XCK_1;
-	//config.pinmux_pad0 = PINMUX_PB08D_SERCOM4_PAD0;
-	config.pinmux_pad0 = PINMUX_PA12D_SERCOM4_PAD0;
-	
-	//config.pinmux_pad1 = PINMUX_PB09D_SERCOM4_PAD1;
-	config.pinmux_pad1 = PINMUX_PA13D_SERCOM4_PAD1;
-
-	config.pinmux_pad2 = PINMUX_UNUSED;
-	config.pinmux_pad3 = PINMUX_UNUSED;
-	
-	NVIC_SetPriority(SERCOM4_IRQn, APP_LOW_PRIORITY);
-
-	while(usart_init(&mUart, SERCOM4, &config) != STATUS_OK);
-
-	// Register Callbacks
-
-	usart_register_callback(&mUart,
-		callback_transmitted, USART_CALLBACK_BUFFER_TRANSMITTED);
-	
-	usart_enable_callback(&mUart, USART_CALLBACK_BUFFER_TRANSMITTED);
-
-	usart_enable_callback(&mUart, USART_CALLBACK_ERROR);
-
-	usart_enable(&mUart);
+	init_and_enable_uart(115200);
 
 	init_dmac();
 

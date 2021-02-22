@@ -145,6 +145,8 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 
 		CASE2FUNC(USB_CMD_DFU_RESET, RJTUSBBridgeDFU_reset);
 
+		CASE2FUNC(USB_CMD_I2CM_TRANSACTION, SKUSBBridgeI2CM_transaction);
+		
 		default:
 			ret_code = RJT_USB_ERROR_UNKNOWN_CMD;
 			break;
@@ -176,15 +178,15 @@ bool RJTUSBBridge_processControlRequestWrite(
 	switch(bRequest)
 	{
 		case CNTRL_REQ_RESET: {
+			RJTLogger_print("Resetting usb bridge...");
+
 			mSeqNo = false;
 
 			// This command expects no additional write data...
 			*dst_buf = NULL;
 			*dst_buflen = 0;
 
-			RJTUSBBridgeConfig_reset();
-			
-			RJTLogger_print("Resetting usb bridge...");
+			RJTUSBBridgeConfig_reset();			
 		} break;
 
 		default:

@@ -24,7 +24,7 @@ union SKAppHeader app_header = {
 		.fw_major_version = 0x00,
 		.fw_minor_version = 0x00,
 		.fw_patch_version = 0x00,
-		.vector_table_addr = &_svector_table,
+		.vector_table_addr = (uint32_t) &_svector_table,
 		.git_sha = {0},
 	},
 };
