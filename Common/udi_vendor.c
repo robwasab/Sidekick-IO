@@ -116,7 +116,7 @@ static void process_write(iram_size_t nb_transfered)
 
 	if(true == mReadEPEnabled)
 	{
-		RJTLogger_print("aborting read endpoint");
+		//RJTLogger_print("aborting read endpoint");
 
 		udd_ep_abort(UDI_VENDOR_EP_READ_ADDR);
 	}
@@ -159,7 +159,7 @@ static void write_transfer_callback(udd_ep_status_t  status,
 		} break;
 
 		case UDD_EP_TRANSFER_ABORT: {
-			RJTLogger_print("write abort success");
+			//RJTLogger_print("write abort success");
 			if(true == mWriteEPEnabled) 
 			{
 				RJTLogger_print("starting write endpoint");
@@ -203,7 +203,7 @@ static void interrupt_transfer_callback(udd_ep_status_t status,
 		} break;
 
 		case UDD_EP_TRANSFER_ABORT: {
-			RJTLogger_print("interrupt transfer aborted...");
+			//RJTLogger_print("interrupt transfer aborted...");
 			
 			mNotifyEPAborting = false;
 

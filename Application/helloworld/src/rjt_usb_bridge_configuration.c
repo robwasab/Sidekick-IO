@@ -40,6 +40,7 @@ static struct {
  */
 static uint8_t mIndex2Pin[RJT_USB_BRIDGE_NUM_GPIOS] = {
 	PIN_PB00, PIN_PB01, PIN_PB02, PIN_PB03, PIN_PB04, PIN_PB05, PIN_PB06, PIN_PB07,
+	PIN_PB08, PIN_PB09, PIN_PB10, PIN_PB11, PIN_PB12, PIN_PB13, PIN_PB14, PIN_PB15,
 };
 
 
@@ -59,8 +60,22 @@ static uint8_t mConfig2Override[SK_USB_CONFIG_MAX][RJT_USB_BRIDGE_NUM_GPIOS] = {
 
 
 static uint8_t pin2extint[] = {
-	RJT_EIC_EXT_INT0, RJT_EIC_EXT_INT1, RJT_EIC_EXT_INT2, RJT_EIC_EXT_INT3,
-	RJT_EIC_EXT_INT4, RJT_EIC_EXT_INT5, RJT_EIC_EXT_INT6, RJT_EIC_EXT_INT7, 
+	RJT_EIC_EXT_INT0, 
+	RJT_EIC_EXT_INT1, 
+	RJT_EIC_EXT_INT2, 
+	RJT_EIC_EXT_INT3,
+	RJT_EIC_EXT_INT4, 
+	RJT_EIC_EXT_INT5, 
+	RJT_EIC_EXT_INT6, 
+	RJT_EIC_EXT_INT7,
+	RJT_EIC_EXT_INT8,
+	RJT_EIC_EXT_INT9,
+	RJT_EIC_EXT_INT10,
+	RJT_EIC_EXT_INT11,
+	RJT_EIC_EXT_INT12,
+	RJT_EIC_EXT_INT13,
+	RJT_EIC_EXT_INT14,
+	RJT_EIC_EXT_INT15,
 };
 
 
@@ -149,7 +164,7 @@ static enum RJT_USB_ERROR config_gpio(void)
 
 		RJTEIC_disableInterrupt(extint);
 	}
-
+	
 	__mCurrentConfig = SK_USB_CONFIG_GPIO;
 
 	RJTLogger_print("CONFIG: gpio");
@@ -233,21 +248,49 @@ static enum RJT_USB_ERROR config_spi_master(const uint8_t * cmd_data, size_t cmd
 		uint8_t * rsp_data, size_t * rsp_len)
 {
 	RJT_USB_BRIDGE_BEGIN_CMD
-	uint8_t spi_mode;
-	uint8_t data_order;
+	uint8_t  spi_mode;
+	uint8_t  data_order;
+	uint32_t baudrate;
 	RJT_USB_BRIDGE_END_CMD
 
 	ASSERT(false == mSpi.enabled);
+	
+	
+	const enum spi_transfer_mode cmd2spi_transfer_mode[] = {
+		[0] = SPI_TRANSFER_MODE_0,
+		[1] = SPI_TRANSFER_MODE_1,
+		[2] = SPI_TRANSFER_MODE_2,
+		[3] = SPI_TRANSFER_MODE_3,
+	};
+	
+	if(cmd.spi_mode >= ARRAY_SIZE(cmd2spi_transfer_mode)) {
+		*rsp_len = 0;
+		RJTLogger_print("bad spi mode: %d", cmd.spi_mode);
+		return RJT_USB_ERROR_PARAMETER;
+	}
+	
+	const enum spi_data_order cmd2spi_data_order[] = {
+		[0] = SPI_DATA_ORDER_MSB,
+		[1] = SPI_DATA_ORDER_LSB,	
+	};
+	
+	if(cmd.data_order >= ARRAY_SIZE(cmd2spi_data_order)) {
+		*rsp_len = 0;
+		RJTLogger_print("bad data order");
+		return RJT_USB_ERROR_PARAMETER;
+	}
+	
 	struct spi_config	config;
 
 	spi_get_config_defaults(&config);
 
-	config.character_size = SPI_CHARACTER_SIZE_8BIT;
-	config.data_order			= SPI_DATA_ORDER_MSB;
+	config.character_size   = SPI_CHARACTER_SIZE_8BIT;
+	config.data_order	    = cmd2spi_data_order[cmd.data_order];
 	config.generator_source = GCLK_GENERATOR_0;
 	config.master_slave_select_enable = true;
-	config.mode = SPI_MODE_MASTER;
-	config.mode_specific.master.baudrate = 1000000;
+	config.mode          = SPI_MODE_MASTER;
+	config.transfer_mode = cmd2spi_transfer_mode[cmd.spi_mode];
+	config.mode_specific.master.baudrate = cmd.baudrate;
 
 	config.mux_setting = SPI_SIGNAL_MUX_SETTING_D;
 	
@@ -258,8 +301,14 @@ static enum RJT_USB_ERROR config_spi_master(const uint8_t * cmd_data, size_t cmd
 
 	enum status_code ret;
 	ret = spi_init(&mSpi.instance, SERCOM5, &config);
-	ASSERT(STATUS_OK == ret);
-
+	
+	if(STATUS_OK != ret) {
+		ASSERT(0 < *rsp_len);
+		rsp_data[0] = ret;
+		*rsp_len = 1;
+		return RJT_USB_ERROR_OPERATION_FAILED;
+	}
+	
 	spi_register_callback(&mSpi.instance, RJTUSBBridgeSPIM_callback, SPI_CALLBACK_BUFFER_TRANSCEIVED);
 
 	spi_enable_callback(&mSpi.instance, SPI_CALLBACK_BUFFER_TRANSCEIVED);
@@ -342,7 +391,7 @@ void RJTUSBBridgeConfig_index2gpio(uint8_t index, bool * success, uint8_t * gpio
 
 		if(0xff != gpio_num) 
 		{
-			*gpio = config2gpio(current_config, index);
+			*gpio = gpio_num;
 			*success = true;
 		}
 		else {

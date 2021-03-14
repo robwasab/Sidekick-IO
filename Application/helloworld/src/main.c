@@ -86,17 +86,17 @@ static void my_fault_handler(uint32_t stack_pointer)
 }
 
 
-#define HARDFAULT_HANDLING_ASM()\
-	__asm volatile(					\
-			"mov r0, #4 \n"			\
-			"mov r1, lr \n"			\
-			"tst r1, r0 \n"			\
-			"beq 1f \n"					\
-			"mrs r0, psp \n"		\
+#define HARDFAULT_HANDLING_ASM()    \
+	__asm volatile(                 \
+			"mov r0, #4 \n"         \
+			"mov r1, lr \n"         \
+			"tst r1, r0 \n"         \
+			"beq 1f \n"             \
+			"mrs r0, psp \n"        \
 			"b my_fault_handler \n"	\
-			"1:"										\
-			"mrs r0, msp \n"				\
-			"b my_fault_handler \n"	\
+			"1:"                    \
+			"mrs r0, msp \n"        \
+			"b my_fault_handler \n" \
 			)
 
 
@@ -118,6 +118,19 @@ __attribute__((naked)) void HardFault_Handler(void)
 #pragma GCC push_options
 #pragma GCC optimize("O0")
 
+
+static void init_led(void)
+{
+	struct port_config config;
+	port_get_config_defaults(&config);
+
+	config.direction = PORT_PIN_DIR_OUTPUT;
+	config.input_pull = PORT_PIN_PULL_NONE;
+
+	port_pin_set_config(PIN_PB30, &config);
+}
+
+
 int main (void)
 {	
 	// stack watermark
@@ -127,6 +140,8 @@ int main (void)
 	//__disable_irq();
 
 	system_init();
+
+	init_led();	
 
 	RJTLogger_init();
 
@@ -164,8 +179,6 @@ int main (void)
 	
 	/* This skeleton code simply sets the LED to the state of the button. */
 	while (1) {
-		/* Is button pressed? */
-		
 		RJTUart_processCDC();
 
 		RJTLogger_process();

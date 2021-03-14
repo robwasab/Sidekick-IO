@@ -89,11 +89,26 @@ enum USBCmd
 	USB_CMD_GPIO_PIN_READ  = 0x05,
 	USB_CMD_GPIO_GET_INTERRUPT_STATUS    = 0x06,
 	USB_CMD_GPIO_CLEAR_INTERRUPT_STATUS  = 0x07,
-	USB_CMD_GPIO_ENABLE_PIN_INTERRUPT    = 0x08,
-	USB_CMD_GPIO_PARALLEL_WRITE = 0x09,
-	USB_CMD_SPIM_TRANSFER_DATA  = 0x0A,
 	
-	USB_CMD_DFU_START           = 0x0B,
+	USB_CMD_GPIO_ENABLE_PIN_INTERRUPT    = 0x08,
+	/**
+		Enables pin interrupts.
+		
+		Parameters:
+		-----------
+		uint8_t gpio_index the gpio to enable the interrupt on
+		
+		Error Codes:
+		------------
+		- RJT_USB_ERROR_PARAMETER invalid gpio index
+		- RJT_USB_ERROR_NONE success
+	*/
+	
+	USB_CMD_GPIO_PARALLEL_WRITE = 0x09,
+	USB_CMD_GPIO_DISABLE_PIN_INTERRUPT   = 0x0A,
+	USB_CMD_SPIM_TRANSFER_DATA  = 0x0B,
+	
+	USB_CMD_DFU_START           = 0x0C,
 	/**
 		Initiates a DFU update. This command erases the 
 		application flash memory area. It also resets the 
@@ -111,7 +126,7 @@ enum USBCmd
 		- RJT_USB_ERROR_NONE success
 	 */
 
-	USB_CMD_DFU_WRITE_DATA     = 0x0C,
+	USB_CMD_DFU_WRITE_DATA     = 0x0D,
 	/**
 		Writes the data provided to flash. Internally, data
 		is buffered, and once it reaches the size of a page,
@@ -129,7 +144,7 @@ enum USBCmd
 		- RJT_USB_ERROR_NONE success
 	 */
 	
-	USB_CMD_DFU_READ_DATA      = 0x0D,
+	USB_CMD_DFU_READ_DATA      = 0x0E,
 	/**
 		Reads data from the flash. After reading, the read
 		flash counter is incremented automatically.
@@ -137,7 +152,7 @@ enum USBCmd
 		No parameters.
 	 */
 
-	USB_CMD_DFU_RESET_READ_PTR	= 0x0E,
+	USB_CMD_DFU_RESET_READ_PTR	= 0x0F,
 	/**
 		Resets the read pointer to the beginning of the 
 		application base pointer.
@@ -145,7 +160,7 @@ enum USBCmd
 		No parameters.
 	 */
 
-	USB_CMD_DFU_DONE_WRITING = 0x0F,
+	USB_CMD_DFU_DONE_WRITING = 0x10,
 	/**
 		Finalizes the DFU update. Any remaining data stored
 		in the cache is written to NVM.
@@ -153,7 +168,7 @@ enum USBCmd
 		No parameters.
 	 */
 
-	USB_CMD_DFU_RESET = 0x10,
+	USB_CMD_DFU_RESET = 0x11,
 	/**
 		Initiates a soft reset to run the newly programmed application.
 
@@ -171,7 +186,7 @@ enum USBCmd
 		- RJT_USB_ERROR_PARAMETER if an invalid mode was given
 	 */
 	
-	USB_CMD_I2CM_TRANSACTION = 0x11,
+	USB_CMD_I2CM_TRANSACTION = 0x12,
 	/**
 		Write data over i2c. Must be configured first.
 		
@@ -186,6 +201,18 @@ enum USBCmd
 		- RJT_USB_ERROR_NONE if success
 		- RJT_USB_ERROR_OPERATION_FAILED if error occurred. ASF error returned in the response.
 	 */
+
+	USB_CMD_GPIO_SET_LED = 0x13,
+	/**
+		Set the LED state.
+		
+		Parameters:
+		-----------
+		uint8_t (bool) on
+		
+		Error Codes:
+		always returns RJT_USB_ERROR_NONE
+	*/
 };
 
 

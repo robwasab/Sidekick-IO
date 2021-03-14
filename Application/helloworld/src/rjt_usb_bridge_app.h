@@ -18,7 +18,7 @@
 
 #include "rjt_usb_bridge.h"
 
-#define RJT_USB_BRIDGE_NUM_GPIOS (8)
+#define RJT_USB_BRIDGE_NUM_GPIOS (16)
 
 
 enum RJT_USB_INTERRUPT_BIT {
@@ -53,6 +53,8 @@ void RJTUSBBridgeConfig_init(void);
 
 RJT_USB_CMD_DECL(RJTUSBBridgeGPIO_enablePinInterrupt);
 
+RJT_USB_CMD_DECL(RJTUSBBridgeGPIO_disablePinInterrupt);
+
 RJT_USB_CMD_DECL(RJTUSBBridgeGPIO_configureIndex);
 
 RJT_USB_CMD_DECL(RJTUSBBridgeGPIO_pinSet);
@@ -66,6 +68,10 @@ RJT_USB_CMD_DECL(RJTUSBBridgeGPIO_clearInterruptStatus);
 RJT_USB_CMD_DECL(RJTUSBBridgeGPIO_parallelWrite);
 
 RJT_USB_CMD_DECL(RJTUSBBridgeDFU_reset);
+
+RJT_USB_CMD_DECL(RJTUSBBridgeGPIO_setLed);
+
+
 
 void RJTUSBBridgeGPIO_init(void);
 

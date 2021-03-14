@@ -139,6 +139,8 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 
 		CASE2FUNC(USB_CMD_GPIO_ENABLE_PIN_INTERRUPT, RJTUSBBridgeGPIO_enablePinInterrupt);
 
+		CASE2FUNC(USB_CMD_GPIO_DISABLE_PIN_INTERRUPT, RJTUSBBridgeGPIO_disablePinInterrupt);
+
 		CASE2FUNC(USB_CMD_SPIM_TRANSFER_DATA, RJTUSBBridgeSPIM_transferData);
 
 		CASE2FUNC(USB_CMD_GPIO_PARALLEL_WRITE, RJTUSBBridgeGPIO_parallelWrite);
@@ -146,6 +148,8 @@ void RJTUSBBridge_processCmd(const uint8_t * cmd_data, size_t cmd_len,
 		CASE2FUNC(USB_CMD_DFU_RESET, RJTUSBBridgeDFU_reset);
 
 		CASE2FUNC(USB_CMD_I2CM_TRANSACTION, SKUSBBridgeI2CM_transaction);
+		
+		CASE2FUNC(USB_CMD_GPIO_SET_LED, RJTUSBBridgeGPIO_setLed);
 		
 		default:
 			ret_code = RJT_USB_ERROR_UNKNOWN_CMD;

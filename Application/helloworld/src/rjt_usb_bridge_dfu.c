@@ -54,17 +54,19 @@ static void my_sof_callback(void)
 		mResetCountDown--;
 	}
 
-	/*
 	static uint32_t cnt = 0;
 
 	if(cnt == 1000) {
-		//RJTLogger_print("sof callback...");
+		/*
+		static bool level = false;
+		port_pin_set_output_level(PIN_PB30, level);
+		level ^= true;
+		*/
 		cnt = 0;
 	}
 	else {
 		cnt++;
 	}
-	*/
 }
 
 

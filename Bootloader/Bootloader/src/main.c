@@ -193,6 +193,7 @@ int main (void)
 {
 	system_init();
 
+	init_led();
 	init_dfu_sense_pin();
 
 	RJTLogger_init();

@@ -17,16 +17,16 @@ static RJTEIC_t * mSelf = NULL;
 // use the name enable in compiler.h
 #undef ENABLE
 
-#define ENABLE_EIC()								\
-do {																\
-	EIC->CTRL.bit.ENABLE = 1;					\
-	while(EIC->STATUS.bit.SYNCBUSY);	\
+#define ENABLE_EIC() \
+do {\
+	EIC->CTRL.bit.ENABLE = 1;\
+	while(EIC->STATUS.bit.SYNCBUSY);\
 } while(0)
 
-#define DISABLE_EIC()								\
-do {																\
-	EIC->CTRL.bit.ENABLE = 0;					\
-	while(EIC->STATUS.bit.SYNCBUSY);	\
+#define DISABLE_EIC()\
+do {\
+	EIC->CTRL.bit.ENABLE = 0;\
+	while(EIC->STATUS.bit.SYNCBUSY);\
 } while(0)
 
 

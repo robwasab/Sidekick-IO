@@ -18,13 +18,13 @@ static uint32_t mPinInterruptStatus = 0;
 static RJTEIC_t mEICModule;
 
 
-static void set_pin_interrupt(uint8_t logical_gpio_no)
+static void set_pin_interrupt_flag(uint8_t logical_gpio_no)
 {
 	ASSERT(logical_gpio_no < 32);
 
 	system_interrupt_enter_critical_section();
 	mPinInterruptStatus |= (1 << logical_gpio_no);
-	RJTLogger_print("logical gpio: %d", logical_gpio_no);
+	//RJTLogger_print("logical gpio: %d", logical_gpio_no);
 	system_interrupt_leave_critical_section();
 }
 
@@ -36,7 +36,7 @@ static void ext_interrupt_callback(void * self, uint8_t pinno, uint8_t intno)
 	if(pinno == PIN_PA15) 
 	{
 		// switch pin on xplained board
-		set_pin_interrupt(31);
+		set_pin_interrupt_flag(31);
 		RJTUSBBridge_setInterruptBit(RJT_USB_INTERRUPT_BIT_GPIO, true);
 	} 
 	else {
@@ -47,14 +47,42 @@ static void ext_interrupt_callback(void * self, uint8_t pinno, uint8_t intno)
 		if(true == success) 
 		{
 			ASSERT(0xff != index);
-			set_pin_interrupt(index);
+			set_pin_interrupt_flag(index);
 			RJTUSBBridge_setInterruptBit(RJT_USB_INTERRUPT_BIT_GPIO, true);
 		}
 		else {
-			//RJTLogger_print("pin interrupt triggered on unknown pin: %d", pinno);
+			RJTLogger_print("pin interrupt triggered on unknown pin: %d", pinno);
 		}
 	}
 }
+
+
+#define GPIO_VERIFY_CMD_INDEX_BEGIN \
+do { \
+	bool success = false; \
+	uint8_t gpio = 0xff; \
+	uint8_t extint = 0xff; \
+	RJTUSBBridgeConfig_index2gpio(cmd.index, &success, &gpio); \
+	if(true == success) { \
+		success = false; \
+		RJTUSBBridgeConfig_index2extint(cmd.index, &success, &extint); \
+		if(true == success) {
+
+
+#define GPIO_VERIFY_CMD_INDEX_END \
+		} else { \
+			RJTLogger_print("GPIO: index2extint failed..."); \
+			*rsp_len = 0; \
+			return RJT_USB_ERROR_PARAMETER; \
+		} \
+	} else { \
+		/* index could not be converted to gpio */ \
+		RJTLogger_print("GPIO: index2gpio failed..."); \
+		*rsp_len = 0; \
+		return RJT_USB_ERROR_PARAMETER; \
+	} \
+} while(0); \
+return RJT_USB_ERROR_NONE;
 
 
 enum RJT_USB_ERROR RJTUSBBridgeGPIO_pinRead(const uint8_t * cmd_data, size_t cmd_len,
@@ -66,124 +94,96 @@ enum RJT_USB_ERROR RJTUSBBridgeGPIO_pinRead(const uint8_t * cmd_data, size_t cmd
 	ASSERT(*rsp_len >= 1);
 
 	RJT_USB_BRIDGE_BEGIN_CMD
-		uint8_t gpio_index;
+		uint8_t index;
 	RJT_USB_BRIDGE_END_CMD
 
-	// Check to see if GPIO pin number is valid
-	bool success = false;
-	uint8_t gpio = 0xff;
 
-	RJTUSBBridgeConfig_index2gpio(cmd.gpio_index, &success, &gpio);
-
-	if(true == success && 0xff != gpio)
+	GPIO_VERIFY_CMD_INDEX_BEGIN
 	{
 		bool level = port_pin_get_input_level(gpio);
 		
 		rsp_data[0] = (uint8_t) level;
 		*rsp_len = 1;
-
-		return RJT_USB_ERROR_NONE;
 	}
-	else {
-		RJTLogger_print("GPIO: pinRead() error, invalid gpio index");
-		*rsp_len = 0;
-		return RJT_USB_ERROR_PARAMETER;
-	}	
+	GPIO_VERIFY_CMD_INDEX_END
 };
 
 
 enum RJT_USB_ERROR RJTUSBBridgeGPIO_pinSet(const uint8_t * cmd_data, size_t cmd_len,
 		uint8_t * rsp_data, size_t * rsp_len)
 {
-	RJTLogger_print("GPIO: pinSet()");
+	//sRJTLogger_print("GPIO: pinSet()");
 
 	RJT_USB_BRIDGE_BEGIN_CMD
 		uint8_t index;
 		uint8_t val;
 	RJT_USB_BRIDGE_END_CMD
 	
-	// Check to see if GPIO pin number is valid
-	bool success = false;
-	uint8_t gpio = 0xff;
-
-	RJTUSBBridgeConfig_index2gpio(cmd.index, &success, &gpio);
-
-	if(true == success)
+	
+	GPIO_VERIFY_CMD_INDEX_BEGIN
 	{
+		//RJTLogger_print("GPIO: setting pin...");
 		port_pin_set_output_level(gpio, !!cmd.val);
-
-		RJTLogger_print("GPIO: Set index %d gpio %x: %?", cmd.index, gpio, cmd.val);
-
-		return RJT_USB_ERROR_NONE;
-	}
-	else {
-		RJTLogger_print("GPIO: index2gpio failed...");
-		
 		*rsp_len = 0;
-		return RJT_USB_ERROR_PARAMETER;
+		//RJTLogger_print("GPIO: Set index %d gpio %x: %?", cmd.index, gpio, cmd.val);
 	}
+	GPIO_VERIFY_CMD_INDEX_END	
 };
 
 
 enum RJT_USB_ERROR RJTUSBBridgeGPIO_enablePinInterrupt(
 		const uint8_t * cmd_data, size_t cmd_len, uint8_t * rsp_data, size_t * rsp_len)
 {
-	RJTLogger_print("GPIO: enablePinInterrupt()");
+	//RJTLogger_print("GPIO: enablePinInterrupt()");
 
 	RJT_USB_BRIDGE_BEGIN_CMD
 	uint8_t index;
 	RJT_USB_BRIDGE_END_CMD
 
-	// Check to see if GPIO pin number is valid
-	bool success = false;
-	uint8_t gpio = 0xff;
-	uint8_t extint = 0xff;
-
-	RJTUSBBridgeConfig_index2gpio(cmd.index, &success, &gpio);
-
-	if(true == success) 
+	GPIO_VERIFY_CMD_INDEX_BEGIN
 	{
-		success = false;
-		RJTUSBBridgeConfig_index2extint(cmd.index, &success, &extint);
+		RJTEICConfig_t config = {
+			.ext_int_sel = extint,
+			.eic_detection = RJT_EIC_DETECTION_FALL,
+			.gpio = gpio,
+			.gpio_mux_position = 0,
+			.callback = ext_interrupt_callback,
+		};
 
-		if(true == success)
-		{
-			RJTEICConfig_t config = {
-				.ext_int_sel = extint,
-				.eic_detection = RJT_EIC_DETECTION_FALL,
-				.gpio = gpio,
-				.gpio_mux_position = 0,
-				.callback = ext_interrupt_callback,
-			};
+		RJTEIC_configure(&mEICModule, &config);
 
-			RJTEIC_configure(&mEICModule, &config);
-
-			RJTEIC_enableInterrupt(extint);
+		RJTEIC_enableInterrupt(extint);
 			
-			*rsp_len = 0;
-			return RJT_USB_ERROR_NONE;
+		*rsp_len = 0;
+	}
+	GPIO_VERIFY_CMD_INDEX_END
+}
 
-		} else {
-			RJTLogger_print("GPIO: index2extint failed...");
-			*rsp_len = 0;
-			return RJT_USB_ERROR_PARAMETER;
-		}
-	} else {
-		// index could not be converted to gpio
-		RJTLogger_print("GPIO: index2gpio failed...");
+
+enum RJT_USB_ERROR RJTUSBBridgeGPIO_disablePinInterrupt(
+		const uint8_t * cmd_data, size_t cmd_len, uint8_t * rsp_data, size_t * rsp_len)
+{
+	//RJTLogger_print("GPIO: disablePinInterrupt()");
+
+	RJT_USB_BRIDGE_BEGIN_CMD
+	uint8_t index;
+	RJT_USB_BRIDGE_END_CMD
+
+
+	GPIO_VERIFY_CMD_INDEX_BEGIN
+	{
+		RJTEIC_disableInterrupt(extint);
 		
 		*rsp_len = 0;
-		return RJT_USB_ERROR_PARAMETER;
 	}
-
-	return RJT_USB_ERROR_NONE;
+	GPIO_VERIFY_CMD_INDEX_END
 }
 
 
 enum RJT_USB_ERROR RJTUSBBridgeGPIO_getInterruptStatus(
 		const uint8_t * cmd_data, size_t cmd_len, uint8_t * rsp_data, size_t * rsp_len)
 {
-	RJTLogger_print("GPIO: getInterruptStatus()");
+	//RJTLogger_print("GPIO: getInterruptStatus()");
 
 	ASSERT(*rsp_len >= sizeof(mPinInterruptStatus));
 
@@ -243,13 +243,14 @@ enum RJT_USB_ERROR RJTUSBBridgeGPIO_parallelWrite(
 	return RJT_USB_ERROR_NONE;
 }
 
+
 enum RJT_USB_ERROR RJTUSBBridgeGPIO_configureIndex(
 		const uint8_t * cmd_data, size_t cmd_len, uint8_t * rsp_data, size_t * rsp_len)
 {
 	RJTLogger_print("GPIO: configureIndex()");
 
 	RJT_USB_BRIDGE_BEGIN_CMD
-		uint8_t pin;
+		uint8_t index;
 		uint8_t dir;
 		uint8_t pull;
 	RJT_USB_BRIDGE_END_CMD
@@ -258,7 +259,7 @@ enum RJT_USB_ERROR RJTUSBBridgeGPIO_configureIndex(
 	bool success = false;
 	uint8_t gpio = 0xff;
 
-	RJTUSBBridgeConfig_index2gpio(cmd.pin, &success, &gpio);
+	RJTUSBBridgeConfig_index2gpio(cmd.index, &success, &gpio);
 
 	if(true == success && 0xff != gpio)
 	{
@@ -307,10 +308,27 @@ enum RJT_USB_ERROR RJTUSBBridgeGPIO_configureIndex(
 		}
 	}
 	else {
+		RJTLogger_print("gpio pin not available");
 		*rsp_len = 0;
 		return RJT_USB_ERROR_PARAMETER;
 	}
 };
+
+
+enum RJT_USB_ERROR RJTUSBBridgeGPIO_setLed(
+		const uint8_t * cmd_data, size_t cmd_len, uint8_t * rsp_data, size_t * rsp_len)
+{
+	//RJTLogger_print("GPIO: setLed()");
+
+	RJT_USB_BRIDGE_BEGIN_CMD
+	uint8_t on;
+	RJT_USB_BRIDGE_END_CMD
+
+	port_pin_set_output_level(PIN_PB30, !cmd.on);
+	
+	*rsp_len = 0;
+	return RJT_USB_ERROR_NONE;
+}
 
 
 void RJTUSBBridgeGPIO_init(void)
