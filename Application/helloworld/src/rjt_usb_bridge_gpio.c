@@ -138,23 +138,37 @@ enum RJT_USB_ERROR RJTUSBBridgeGPIO_enablePinInterrupt(
 
 	RJT_USB_BRIDGE_BEGIN_CMD
 	uint8_t index;
+	uint8_t detection;
 	RJT_USB_BRIDGE_END_CMD
 
 	GPIO_VERIFY_CMD_INDEX_BEGIN
 	{
-		RJTEICConfig_t config = {
-			.ext_int_sel = extint,
-			.eic_detection = RJT_EIC_DETECTION_FALL,
-			.gpio = gpio,
-			.gpio_mux_position = 0,
-			.callback = ext_interrupt_callback,
+		enum RJT_EIC_DETECTION cmd2detection[] = {
+			[0] = RJT_EIC_DETECTION_FALL,
+			[1] = RJT_EIC_DETECTION_RISE,
+			[2] = RJT_EIC_DETECTION_BOTH,
 		};
+		
+		if(cmd.detection < ARRAY_SIZE(cmd2detection))
+		{
+			RJTEICConfig_t config = {
+				.ext_int_sel = extint,
+				.eic_detection = cmd2detection[cmd.detection],
+				.gpio = gpio,
+				.gpio_mux_position = 0,
+				.callback = ext_interrupt_callback,
+			};
 
-		RJTEIC_configure(&mEICModule, &config);
+			RJTEIC_configure(&mEICModule, &config);
 
-		RJTEIC_enableInterrupt(extint);
-			
-		*rsp_len = 0;
+			RJTEIC_enableInterrupt(extint);
+				
+			*rsp_len = 0;
+		}
+		else {
+			*rsp_len = 0;
+			return RJT_USB_ERROR_PARAMETER;
+		}
 	}
 	GPIO_VERIFY_CMD_INDEX_END
 }
